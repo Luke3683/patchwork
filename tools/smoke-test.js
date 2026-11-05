@@ -19,6 +19,7 @@ export async function run() {
   G.started = true;
   G.input.enabled = true;
   G.input.lockFailed = true;
+  const savedPrefs = JSON.stringify(G.prefs);
 
   const step = (seconds = DT, each) => {
     for (let i = 0; i < seconds / DT; i++) {
@@ -162,6 +163,110 @@ export async function run() {
   step(DT * 3);
   results['block-yard removes'] = cells() === placed - 1;
 
+  // Orbit Hoops: lob the ball ahead of the moving hoop.
+  await enter('orbit-hoops');
+  pick(0);
+  const hoops = G.world.debug;
+  const CHARGE_FRAMES = 11;
+  const speed = 4 + (CHARGE_FRAMES + 1) * DT * 8;
+  let lastX = hoops.hoop.position.x;
+  let tries = 0;
+  while (!G.save.hasPatch('orbit-hoops') && tries < 60) {
+    tries += 1;
+    G.canvas.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+    for (let i = 0; i < CHARGE_FRAMES; i++) {
+      const vx = (hoops.hoop.position.x - lastX) / DT;
+      lastX = hoops.hoop.position.x;
+      const head = G.camera.getWorldPosition(G.rig.position.clone());
+      const dy = 3 - head.y;
+      const predictX = hoops.hoop.position.x + vx * 1.25;
+      const d = Math.hypot(predictX - head.x, -6.5 - head.z);
+      const root2 = Math.sqrt(speed ** 4 - hoops.g * (hoops.g * d * d + 2 * dy * speed * speed));
+      const pitch = Math.atan2(speed * speed - root2, hoops.g * d);
+      const aim = head.clone();
+      aim.x += ((predictX - head.x) / d) * Math.cos(pitch) * 10;
+      aim.z += ((-6.5 - head.z) / d) * Math.cos(pitch) * 10;
+      aim.y += Math.sin(pitch) * 10;
+      aimAt(aim);
+      step(DT);
+    }
+    dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
+    step(1.6);
+    lastX = hoops.hoop.position.x;
+  }
+  results['orbit-hoops win'] = G.save.hasPatch('orbit-hoops');
+
+  // Gloom Manor: follow the path to each key, then to the door.
+  await enter('gloom-manor');
+  pick(0);
+  G.input.keys.add('KeyW');
+  results['gloom-manor win'] = untilPatch('gloom-manor', 240, () => {
+    const path = G.world.debug.target();
+    const next = path[1] ?? path[0];
+    if (next) G.rig.rotation.y = Math.atan2(G.rig.position.x - next[0], G.rig.position.z - next[1]);
+    if (G.world.debug.distance() < 5 && G.world.debug.canFlash()) click();
+  });
+  G.input.keys.delete('KeyW');
+
+  // Tide Cove: cast, wait for a bite, reel in, five times.
+  await enter('tide-cove');
+  G.input.mouseNdc.set(0, -0.2);
+  results['tide-cove win'] = untilPatch('tide-cove', 120, () => {
+    const state = G.world.debug.state();
+    if (state === 'idle' || state === 'bite') click();
+  });
+
+  // Avatar Studio: change options, buy an unlock, pick a color and change settings.
+  await enter('avatar-studio');
+  const TAB = { Body: 3, Style: 4, Colors: 5, Gear: 6, Plaza: 7, Comfort: 8 };
+  const FIRST_ROW = 9;
+  const before = G.prefs.look.head;
+  pick(FIRST_ROW + 1);
+  results['studio changes the head'] = G.prefs.look.head !== before;
+  pick(TAB.Style);
+  G.save.data.coins = 0;
+  pick(FIRST_ROW + 2); // cycle the hat backward onto the crown, which is locked
+  results['studio try-on does not buy'] = G.prefs.look.hat === 'none';
+  pick(FIRST_ROW + 4); // the Buy button, with no coins
+  results['studio refuses without coins'] = G.prefs.look.hat === 'none' && !G.save.isUnlocked('hat:crown');
+  G.save.data.coins = 100;
+  pick(FIRST_ROW + 4);
+  results['studio buys an unlock'] = G.prefs.look.hat === 'crown' && G.save.coins === 40 && G.save.isUnlocked('hat:crown');
+  pick(TAB.Colors);
+  const oldColor = G.prefs.look.primary;
+  pick(FIRST_ROW);
+  pick(0); // the color picker
+  results['studio color picker'] = G.prefs.look.primary !== oldColor;
+  pick(TAB.Comfort);
+  const oldSpeed = G.prefs.comfort.speed;
+  pick(FIRST_ROW + 1);
+  results['studio changes settings'] = G.prefs.comfort.speed > oldSpeed;
+  pick(TAB.Plaza);
+  pick(FIRST_ROW); // sky, backward to My colors
+  pick(FIRST_ROW + 4); // floor, backward
+  results['studio changes the plaza'] = G.prefs.plaza.sky === 'custom' && G.prefs.plaza.floor !== 'quilt';
+
+  // Every catalog option has to build, and bad data from another player can't cause harm.
+  const { Avatar } = await import('/src/engine/avatar.js');
+  const { CATALOG, sanitizeLook, DEFAULT_PREFS, sanitizeName, displayName } = await import('/src/engine/prefs.js');
+  let built = 0;
+  for (const key of ['head', 'eyes', 'hat', 'body', 'back', 'hands', 'aura']) {
+    for (const option of CATALOG[key]) {
+      const avatar = new Avatar({ ...DEFAULT_PREFS.look, [key]: option.id }, 'Test');
+      avatar.update(DT, G.camera.position);
+      avatar.dispose();
+      built += 1;
+    }
+  }
+  results['every avatar option builds'] = built > 30;
+  const evil = sanitizeLook({ head: '<script>', hat: 42, primary: 'red', headSize: 1e9, bodySize: NaN, aura: null });
+  results['bad avatar data is cleaned'] = evil.head === 'orb' && evil.hat === 'none' && evil.primary === DEFAULT_PREFS.look.primary
+    && evil.headSize === 1.4 && evil.bodySize === 1;
+  results['bad names are cleaned'] = displayName(sanitizeName(['x', 99999])).length > 0 && displayName(sanitizeName(null)).length > 0;
+
+  // The plaza still builds with the changed settings.
+  G.prefs.plaza.floor = 'quilt';
+
   // The finished quilt opens the gate, and walking into portals works.
   await enter('hub');
   results['quilt complete'] = G.quilt.complete;
@@ -195,6 +300,8 @@ export async function run() {
   G.save.data.patches[template.id] = undefined;
   await enter('hub');
 
+  Object.assign(G.prefs, JSON.parse(savedPrefs));
+  G.savePrefs();
   G.renderer.render = realRender;
   G.renderer.setAnimationLoop(() => G.frame());
   const failed = Object.entries(results).filter(([, ok]) => !ok).map(([name]) => name);

@@ -3,6 +3,8 @@ import { Input } from './input.js';
 import { Sound } from './sound.js';
 import { Save } from './save.js';
 import { Kit } from './kit.js';
+import { Net } from './net.js';
+import { loadPrefs } from './prefs.js';
 
 /** Owns the renderer, the player rig and the currently loaded world. */
 export class Game {
@@ -40,6 +42,9 @@ export class Game {
     this.save = new Save();
     this.sound = new Sound();
     this.input = new Input(this);
+    this.prefs = loadPrefs(this.save.data.prefs);
+    this.net = new Net(this);
+    this.applyPrefs();
 
     addEventListener('resize', () => {
       if (this.isXR) return;
@@ -58,6 +63,21 @@ export class Game {
     return this.renderer.xr.isPresenting;
   }
 
+  /** Pushes the player's settings into the systems that use them. */
+  applyPrefs() {
+    const { audio, comfort, gear } = this.prefs;
+    this.sound.setLevels(audio.volume / 100, audio.voice / 100);
+    this.camera.fov = comfort.fov;
+    this.camera.updateProjectionMatrix();
+    for (const hand of this.input.controllers) hand.laser.material.color.set(gear.laserColor);
+  }
+
+  savePrefs() {
+    this.save.data.prefs = this.prefs;
+    this.save.persist();
+    this.applyPrefs();
+  }
+
   /** Worlds that show up as portals in the hub. */
   get portalWorlds() {
     return [...this.worlds.values()].filter((w) => !w.hidden);
@@ -73,6 +93,7 @@ export class Game {
     const dt = Math.min(this.clock.getDelta(), 0.05);
     this.time += dt;
     this.input.update(dt);
+    this.net.update(dt);
     if (this.world && !this.busy) this.world.update?.(dt, this.time);
     this.kit?.update(dt, this.time);
     this.updateFade(dt);
@@ -110,9 +131,11 @@ export class Game {
     this.world = null;
     let failed = false;
     try {
+      // Others hear we've arrived first, so a new world can talk to them as it builds.
+      this.currentId = id;
+      this.net.worldChanged();
       this.kit = new Kit(this, this.worlds.get(id));
       this.world = this.worlds.get(id).create(this.kit) || {};
-      this.currentId = id;
     } catch (err) {
       console.error(`World "${id}" failed to load`, err);
       this.kit?.teardown();

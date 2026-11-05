@@ -1,5 +1,6 @@
 import { Game } from './engine/game.js';
 import { worlds } from './worlds/index.js';
+import { Net } from './engine/net.js';
 
 const params = new URLSearchParams(location.search);
 const $ = (id) => document.getElementById(id);
@@ -64,11 +65,80 @@ async function boot() {
     $('vr-note').textContent = 'No headset detected in this browser. To play in VR, open the game in your headset\'s browser.';
   }
 
+  setupRooms(game);
+
   $('reset').addEventListener('click', () => {
     game.save.reset();
     renderSwatches(game);
     game.enter('hub');
   });
+}
+
+function setupRooms(game) {
+  const { net } = game;
+  const status = $('room-status');
+  const defaultStatus = status.textContent;
+  const invite = Net.cleanCode(params.get('room'));
+  const idleStatus = invite
+    ? `You've been invited to room ${invite}. Press Join if you trust who sent this. People in the room can see your IP address.`
+    : defaultStatus;
+  if (invite) $('room-code').value = invite;
+
+  const render = () => {
+    const live = net.status === 'online' || net.status === 'connecting';
+    $('room-setup').hidden = live;
+    $('room-live').hidden = !live;
+    $('room-name').textContent = net.code ?? '';
+    $('room-mic').textContent = net.micOn ? 'Turn off mic' : 'Turn on mic';
+    if (net.status === 'failed') status.textContent = net.error;
+    else if (net.status === 'connecting') status.textContent = 'Connecting…';
+    else if (net.status === 'online') {
+      const count = net.peers.size;
+      status.textContent = count
+        ? `You are ${net.myName}. ${count} friend${count > 1 ? 's are' : ' is'} connected.`
+        : `You are ${net.myName}. Waiting for friends. Send them the invite link. If nobody appears, one of your networks may be blocking direct connections.`;
+    } else {
+      status.textContent = idleStatus;
+    }
+    document.body.classList.toggle('in-room', live);
+  };
+  net.onChange = render;
+
+  const join = async (code) => {
+    game.sound.unlock();
+    try {
+      await net.join(code);
+    } catch (err) {
+      status.textContent = err.message;
+    }
+  };
+  $('room-create').addEventListener('click', () => join(Net.makeCode()));
+  $('room-join').addEventListener('click', () => join($('room-code').value));
+  $('room-code').addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') join($('room-code').value);
+  });
+  $('room-leave').addEventListener('click', () => net.leave());
+  $('room-copy').addEventListener('click', async () => {
+    const link = `${location.origin}${location.pathname}?room=${net.code}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      status.textContent = 'Invite link copied. Send it to your friends.';
+    } catch {
+      status.textContent = `Send your friends this link: ${link}`;
+    }
+  });
+  $('room-mic').addEventListener('click', async () => {
+    game.sound.unlock();
+    try {
+      await net.setMic(!net.micOn);
+    } catch (err) {
+      console.warn(err);
+      status.textContent = 'Your browser blocked the microphone or none was found.';
+    }
+  });
+  addEventListener('pagehide', () => net.leave());
+  render();
 }
 
 function renderSwatches(game) {
@@ -91,7 +161,7 @@ function renderSwatches(game) {
     }
     row.append(canvas);
   }
-  $('quilt-count').textContent = `${done.length} of ${list.length} patches earned`;
+  $('quilt-count').textContent = `${done.length} of ${list.length} patches earned · ${game.save.coins} coins`;
   $('reset').hidden = done.length === 0;
 }
 

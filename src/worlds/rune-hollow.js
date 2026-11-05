@@ -179,7 +179,7 @@ export default {
       k.burst(stones[i].stone.position, 0xffb7d5, 18, 3);
       if (round >= ROUNDS.length) {
         state = 'menu';
-        k.complete();
+        k.win();
         setBoard('The old tree remembers', 'Look up. You woke it.');
         menu = k.menu({
           title: 'Song complete',
@@ -194,7 +194,7 @@ export default {
       wait = 1.1;
     };
 
-    k.spawn(0, 0.9);
+    k.spawnSocial(0, 0.9);
     k.setMove(true);
     k.boundsCircle(9.5);
     setBoard('Rune Hollow', 'The old tree sleeps.');

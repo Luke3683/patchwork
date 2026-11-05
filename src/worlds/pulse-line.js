@@ -49,6 +49,7 @@ export default {
   genre: 'Rhythm',
   comfort: 'Comfortable',
   color: 0xff6f91,
+  seats: true,
 
   patch(g, s) {
     g.fillStyle = '#141338';
@@ -98,7 +99,7 @@ export default {
 
     const glove = () => new THREE.Mesh(
       new THREE.SphereGeometry(0.055, 12, 10),
-      new THREE.MeshBasicMaterial({ color: 0xf4efe2 }),
+      new THREE.MeshBasicMaterial({ color: k.prefs.gear.gloveColor }),
     );
 
     let state = 'menu';
@@ -273,7 +274,7 @@ export default {
           for (const hand of hands) hand.mount.clear();
           const ratio = hits / notes.length;
           const won = ratio >= WIN_RATIO;
-          if (won) k.complete();
+          if (won) k.win();
           else sound.play('fail');
           showMenu(
             won ? 'In the pocket' : 'Off the beat',

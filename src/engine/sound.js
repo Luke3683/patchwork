@@ -3,6 +3,14 @@ export class Sound {
   constructor() {
     this.ctx = null;
     this.master = null;
+    this.voiceBus = null;
+    this.levels = { volume: 0.7, voice: 1 };
+  }
+
+  setLevels(volume, voice) {
+    this.levels = { volume, voice };
+    if (this.master) this.master.gain.value = volume;
+    if (this.voiceBus) this.voiceBus.gain.value = voice;
   }
 
   unlock() {
@@ -11,8 +19,11 @@ export class Sound {
       if (!Ctx) return;
       this.ctx = new Ctx();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.7;
+      this.master.gain.value = this.levels.volume;
       this.master.connect(this.ctx.destination);
+      this.voiceBus = this.ctx.createGain();
+      this.voiceBus.gain.value = this.levels.voice;
+      this.voiceBus.connect(this.ctx.destination);
     }
     this.ctx.resume?.();
   }

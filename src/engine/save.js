@@ -3,11 +3,15 @@ const KEY = 'patchwork.save.v1';
 /** Progress lives in the browser. Storage can be blocked, so every access is guarded. */
 export class Save {
   constructor() {
-    this.data = { patches: {}, worlds: {} };
+    this.data = Save.blank();
     try {
       const raw = localStorage.getItem(KEY);
       if (raw) this.data = { ...this.data, ...JSON.parse(raw) };
     } catch { /* play without saving */ }
+  }
+
+  static blank() {
+    return { patches: {}, worlds: {}, coins: 0, unlocked: {}, prefs: {}, profile: null };
   }
 
   persist() {
@@ -38,8 +42,30 @@ export class Save {
     this.persist();
   }
 
+  get coins() {
+    return Number.isFinite(this.data.coins) ? this.data.coins : 0;
+  }
+
+  addCoins(n) {
+    this.data.coins = Math.max(0, this.coins + n);
+    this.persist();
+  }
+
+  isUnlocked(key) {
+    return !!this.data.unlocked[key];
+  }
+
+  /** Spends coins on an unlock. Returns false if the player can't afford it. */
+  buy(key, cost) {
+    if (this.coins < cost) return false;
+    this.data.coins = this.coins - cost;
+    this.data.unlocked[key] = true;
+    this.persist();
+    return true;
+  }
+
   reset() {
-    this.data = { patches: {}, worlds: {} };
+    this.data = Save.blank();
     this.persist();
   }
 }

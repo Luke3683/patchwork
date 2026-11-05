@@ -1,8 +1,6 @@
 import * as THREE from 'three';
 
 const UP = new THREE.Vector3(0, 1, 0);
-const MOVE_SPEED = 3.2;
-const SNAP_ANGLE = Math.PI / 6;
 const v1 = new THREE.Vector3();
 const v2 = new THREE.Vector3();
 const q1 = new THREE.Quaternion();
@@ -20,11 +18,13 @@ export class Hand {
     this.obj.add(this.mount);
     this.origin = new THREE.Vector3();
     this.dir = new THREE.Vector3(0, 0, -1);
+    this.velocity = new THREE.Vector3(); // how fast the hand is moving, for throwing
+    this.lastOrigin = null;
     this.down = false;
     this.pressed = false; // true for the one frame the trigger went down
     this.released = false;
     this.squeezed = false; // same for the grip button (right click on desktop)
-    this.hit = null; // { target, point, distance } when aiming at a UI target
+    this.hit = null; // { target, point, distance, uv } when aiming at a UI target
     this.source = null; // XRInputSource
     this.queue = { press: false, release: false, squeeze: false };
   }
@@ -137,9 +137,10 @@ export class Input {
       if (this.locked || this.look.active) {
         const dx = THREE.MathUtils.clamp(e.movementX, -200, 200);
         const dy = THREE.MathUtils.clamp(e.movementY, -200, 200);
+        const sens = 0.0022 * this.game.prefs.comfort.sensitivity;
         this.look.moved += Math.abs(dx) + Math.abs(dy);
-        this.game.rig.rotation.y -= dx * 0.0022;
-        this.pitch = THREE.MathUtils.clamp(this.pitch - dy * 0.0022, -1.45, 1.45);
+        this.game.rig.rotation.y -= dx * sens;
+        this.pitch = THREE.MathUtils.clamp(this.pitch - dy * sens, -1.45, 1.45);
       }
     });
     addEventListener('keydown', (e) => {
@@ -207,7 +208,7 @@ export class Input {
 
     if (xr) this.updateXR(dt);
     else this.updateDesktop(dt);
-    this.updateRays(xr);
+    this.updateRays(xr, dt);
     this.updateTargets();
   }
 
@@ -225,12 +226,13 @@ export class Input {
     this.applyDesktopCamera(false);
 
     if (this.keyPressed('KeyH') || this.keyPressed('Tab')) this.game.goHome();
+    if (this.keyPressed('KeyM')) this.game.net.toggleMic();
 
     if (!this.locomotion) return;
     const x = (this.keys.has('KeyD') ? 1 : 0) - (this.keys.has('KeyA') ? 1 : 0);
     const z = (this.keys.has('KeyS') ? 1 : 0) - (this.keys.has('KeyW') ? 1 : 0);
     if (x || z) {
-      const speed = MOVE_SPEED * (this.keys.has('ShiftLeft') ? 1.8 : 1);
+      const speed = this.game.prefs.comfort.speed * (this.keys.has('ShiftLeft') ? 1.8 : 1);
       v1.set(x, 0, z).normalize().applyAxisAngle(UP, rig.rotation.y).multiplyScalar(speed * dt);
       rig.position.add(v1);
       this.bounds?.(rig.position);
@@ -239,19 +241,22 @@ export class Input {
 
   updateXR(dt) {
     const { rig, camera } = this.game;
+    const { speed, snap: snapDegrees, turn } = this.game.prefs.comfort;
     let menu = false;
+    let mic = false;
     let snap = 0;
     for (const hand of this.controllers) {
       const pad = hand.source?.gamepad;
       if (!pad) continue;
       if (pad.buttons[5]?.pressed) menu = true;
+      if (pad.buttons[4]?.pressed) mic = true;
       const ax = pad.axes.length >= 4 ? pad.axes[2] : pad.axes[0] ?? 0;
       const ay = pad.axes.length >= 4 ? pad.axes[3] : pad.axes[1] ?? 0;
       if (hand.source.handedness === 'left' && this.locomotion) {
         if (Math.hypot(ax, ay) > 0.15) {
           camera.getWorldDirection(v1).setY(0).normalize();
           v2.crossVectors(v1, UP);
-          rig.position.addScaledVector(v1, -ay * MOVE_SPEED * dt).addScaledVector(v2, ax * MOVE_SPEED * dt);
+          rig.position.addScaledVector(v1, -ay * speed * dt).addScaledVector(v2, ax * speed * dt);
           this.bounds?.(rig.position);
         }
       } else if (hand.source.handedness !== 'left') {
@@ -260,29 +265,44 @@ export class Input {
     }
     if (menu && !this.menuLatch) this.game.goHome();
     this.menuLatch = menu;
+    if (mic && !this.micLatch) this.game.net.toggleMic();
+    this.micLatch = mic;
 
     if (!this.locomotion) return;
-    if (Math.abs(snap) > 0.6) {
-      if (!this.snapLatch) {
-        camera.getWorldPosition(v1);
-        rig.rotateY(snap > 0 ? -SNAP_ANGLE : SNAP_ANGLE);
-        rig.updateMatrixWorld(true);
-        camera.getWorldPosition(v2);
-        rig.position.add(v1.sub(v2));
-      }
+    if (turn === 'smooth') {
+      if (Math.abs(snap) > 0.2) this.turnAroundHead(-snap * dt * 1.5);
+    } else if (Math.abs(snap) > 0.6) {
+      if (!this.snapLatch) this.turnAroundHead(THREE.MathUtils.degToRad(snap > 0 ? -snapDegrees : snapDegrees));
       this.snapLatch = true;
     } else if (Math.abs(snap) < 0.3) {
       this.snapLatch = false;
     }
   }
 
-  updateRays(xr) {
+  /** Turns the player without moving their head, so it doesn't feel like sliding. */
+  turnAroundHead(angle) {
+    const { rig, camera } = this.game;
+    camera.getWorldPosition(v1);
+    rig.rotateY(angle);
+    rig.updateMatrixWorld(true);
+    camera.getWorldPosition(v2);
+    rig.position.add(v1.sub(v2));
+  }
+
+  updateRays(xr, dt) {
     const { camera } = this.game;
     if (xr) {
       for (const hand of this.controllers) {
         hand.obj.updateWorldMatrix(true, false);
         hand.origin.setFromMatrixPosition(hand.obj.matrixWorld);
         hand.dir.set(0, 0, -1).transformDirection(hand.obj.matrixWorld);
+        if (hand.lastOrigin && dt > 0) {
+          v1.copy(hand.origin).sub(hand.lastOrigin).divideScalar(dt);
+          hand.velocity.lerp(v1, 0.5);
+          hand.lastOrigin.copy(hand.origin);
+        } else {
+          hand.lastOrigin = hand.origin.clone();
+        }
       }
       return;
     }
@@ -315,7 +335,7 @@ export class Input {
         const hit = this.raycaster.intersectObjects(meshes, false)[0];
         if (hit) {
           const target = this.targets.find((t) => t.obj === hit.object);
-          hand.hit = { target, point: hit.point, distance: hit.distance };
+          hand.hit = { target, point: hit.point, distance: hit.distance, uv: hit.uv };
           hovered.add(target);
           length = hit.distance;
         }

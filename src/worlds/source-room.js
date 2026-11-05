@@ -62,7 +62,7 @@ export default {
     root.add(code);
 
     k.exitPortal(new THREE.Vector3(0, 0, 4)).group.lookAt(0, 0, 0);
-    k.spawn(0, 0);
+    k.spawnSocial(0, 0);
     k.setMove(true);
     k.boundsCircle(14);
     return {};

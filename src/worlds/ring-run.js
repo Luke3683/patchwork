@@ -93,7 +93,7 @@ export default {
 
     // Rails around the player give the eyes something steady to hold on to.
     const sled = new THREE.Group();
-    const hull = new THREE.MeshLambertMaterial({ color: 0x24325f, flatShading: true });
+    const hull = new THREE.MeshLambertMaterial({ color: k.prefs.gear.sledColor, flatShading: true });
     sled.add(new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.45, 0.16, 8).translate(0, -0.08, 0), hull));
     const rail = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.028, 6, 24), new THREE.MeshLambertMaterial({ color: 0xffd166 }));
     rail.rotation.x = Math.PI / 2;
@@ -203,7 +203,7 @@ export default {
           if (brake <= 0) {
             state = 'menu';
             const won = through >= RINGS_NEEDED;
-            if (won) k.complete();
+            if (won) k.win();
             else k.sound.play('fail');
             showMenu(
               won ? 'Clean run' : 'Too many missed',

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Panel, makeCard, makeButtonFace } from './ui.js';
 
+const FIRST_PATCH_COINS = 50;
 const v1 = new THREE.Vector3();
 const v2 = new THREE.Vector3();
 const dummy = new THREE.Object3D();
@@ -41,6 +42,7 @@ export class Kit {
     this.input = game.input;
     this.sound = game.sound;
     this.save = game.save;
+    this.prefs = game.prefs;
     this.isXR = game.isXR;
 
     this.root = new THREE.Group();
@@ -51,6 +53,13 @@ export class Kit {
     this.attached = [];
     this.skyObj = null;
     this.bursts = null;
+
+    // Multiplayer for worlds. All of these are safe to use when playing alone.
+    this.net = {
+      peers: () => game.net.peersHere(),
+      send: (type, data, to) => game.net.sendWorld(type, data, to),
+      on: (type, fn) => this.onDispose(game.net.subscribe(type, fn)),
+    };
 
     this.scene.fog = null;
     this.input.reset();
@@ -65,6 +74,12 @@ export class Kit {
     this.rig.rotation.set(0, yaw, 0);
     this.input.pitch = 0;
     this.rig.updateMatrixWorld(true);
+  }
+
+  /** Like spawn, but leaves room when friends are in the world too. */
+  spawnSocial(x, z, yaw = 0) {
+    const crowded = this.game.net.peersHere().length > 0;
+    this.spawn(x + (crowded ? (Math.random() - 0.5) * 2.4 : 0), z + (crowded ? Math.random() * 1.4 : 0), yaw);
   }
 
   setMove(enabled) {
@@ -332,12 +347,27 @@ export class Kit {
 
   // --- Progress -----------------------------------------------------------
 
-  /** Awards this world's quilt patch. Safe to call more than once. */
+  /** Awards this world's quilt patch and a coin bonus. Safe to call more than once. */
   complete() {
     if (this.save.earnPatch(this.def.id)) {
+      this.save.addCoins(FIRST_PATCH_COINS);
       this.sound.play('patch');
-      this.toast('Patch earned', `${this.def.name} is stitched into your quilt.`);
+      this.toast('Patch earned', `${this.def.name} is stitched into your quilt. +${FIRST_PATCH_COINS} coins.`);
     }
+  }
+
+  /** Coins to spend in the Avatar Studio. */
+  reward(coins, reason = 'Nice work') {
+    this.save.addCoins(coins);
+    this.toast(`+${coins} coins`, reason, '#ffd166');
+  }
+
+  /** Call when the player beats the world: the patch the first time, coins every time. */
+  win(coins = 15) {
+    const first = !this.save.hasPatch(this.def.id);
+    this.complete();
+    if (first) this.save.addCoins(coins);
+    else this.reward(coins, `You beat ${this.def.name} again.`);
   }
 
   /** Plays a soft background chord until the player leaves. */

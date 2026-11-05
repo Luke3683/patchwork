@@ -11,6 +11,7 @@ export default {
   genre: 'Shooter',
   comfort: 'Comfortable',
   color: 0x4fd6c4,
+  seats: true,
 
   patch(g, s) {
     g.fillStyle = '#0e2b34';
@@ -84,9 +85,12 @@ export default {
     const board = k.board({ width: 2.3, height: 0.5, at: [0, 3.4, -5], scale: 1.6 });
 
     // Blasters aim straight along the hand's ray.
-    const gunBody = new THREE.BoxGeometry(0.045, 0.06, 0.2).translate(0, 0, -0.07);
-    const gunBarrel = new THREE.CylinderGeometry(0.014, 0.018, 0.1, 8).rotateX(Math.PI / 2).translate(0, 0.012, -0.2);
-    const gunMat = new THREE.MeshLambertMaterial({ color: 0xd9e4e0, flatShading: true });
+    const { blaster, blasterColor } = k.prefs.gear;
+    const gunBody = blaster === 'round'
+      ? new THREE.SphereGeometry(0.06, 10, 8).translate(0, 0, -0.06)
+      : new THREE.BoxGeometry(0.045, 0.06, blaster === 'long' ? 0.32 : 0.2).translate(0, 0, blaster === 'long' ? -0.12 : -0.07);
+    const gunBarrel = new THREE.CylinderGeometry(0.014, 0.018, 0.1, 8).rotateX(Math.PI / 2).translate(0, 0.012, blaster === 'long' ? -0.3 : -0.2);
+    const gunMat = new THREE.MeshLambertMaterial({ color: blasterColor, flatShading: true });
     const tipMat = new THREE.MeshBasicMaterial({ color: 0x4fd6c4 });
     const makeBlaster = () => {
       const g = new THREE.Group();
@@ -197,7 +201,7 @@ export default {
     const finish = (won) => {
       state = 'menu';
       while (drones.length) removeDrone(drones[0]);
-      if (won) k.complete();
+      if (won) k.win();
       else k.sound.play('fail');
       showMenu(
         won ? 'Range clear' : 'Shields down',

@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { Panel, makeCard, DISPLAY } from '../engine/ui.js';
+import { Panel, makeCard, DISPLAY, BODY } from '../engine/ui.js';
+import { disposeTree } from '../engine/kit.js';
+import { SKIES, FLOORS } from '../engine/prefs.js';
 
 const PLAZA = 11;
-const FABRICS = [0xc96f4a, 0xd9a05b, 0x7f9a6a, 0x4f7f8f, 0x8a5a83, 0xe3d3b4];
-const QUILT_COLS = 3;
+const QUILT_COLS = 5;
 const CELL = 240;
 
 export const hexString = (hex) => `#${hex.toString(16).padStart(6, '0')}`;
@@ -57,9 +58,15 @@ export default {
     const { game, root } = k;
     const quilt = game.quilt;
 
-    k.sky({ top: 0x15123a, mid: 0x4b2f7c, horizon: 0xf2995a, bottom: 0x1a1238, stars: 500 });
+    // Sky, floor and stars all come from the player's settings in the Avatar Studio.
+    const { plaza } = k.prefs;
+    const sky = plaza.sky === 'custom'
+      ? { top: plaza.skyTop, mid: new THREE.Color(plaza.skyTop).lerp(new THREE.Color(plaza.skyHorizon), 0.45).getHex(), horizon: plaza.skyHorizon, bottom: plaza.skyTop }
+      : SKIES[plaza.sky];
+    const FABRICS = FLOORS[plaza.floor];
+    k.sky({ ...sky, stars: plaza.stars === 'on' ? 500 : 0 });
     k.lights({ sky: 0xc9c0ff, ground: 0x5b3a55, sun: 0xffc48a, ambient: 1.7, direct: 2.2, dir: [-0.6, 0.45, 0.8] });
-    k.fog(0x6b4a86, 45, 300);
+    k.fog(new THREE.Color(sky.mid).lerp(new THREE.Color(sky.horizon), 0.35).getHex(), 45, 300);
     k.ambience([110, 164.8, 220, 277.2], 0.014);
 
     // The plaza floor is itself a quilt.
@@ -108,7 +115,7 @@ export default {
 
     // The quilt hangs above the portals and fills in as you play.
     const rows = Math.ceil((quilt.list.length + 1) / QUILT_COLS);
-    const quiltW = 7.2;
+    const quiltW = 9;
     const quiltH = (quiltW / QUILT_COLS) * rows;
     const banner = new Panel({ width: quiltW, height: quiltH, ppm: (QUILT_COLS * CELL) / quiltW });
     banner.material.transparent = false;
@@ -127,7 +134,7 @@ export default {
 
     // One portal per world, in an arc. Adding a world to the registry adds a portal here.
     const spawn = new THREE.Vector3(0, 0, 3);
-    const arc = THREE.MathUtils.degToRad(82);
+    const arc = THREE.MathUtils.degToRad(100);
     quilt.list.forEach((world, i) => {
       const n = quilt.list.length;
       const a = n > 1 ? -arc + (i / (n - 1)) * arc * 2 : 0;
@@ -137,7 +144,7 @@ export default {
         accent: hexString(world.color),
         title: world.name,
         subtitle: `${world.genre} · ${world.comfort}${earned ? ' · Patch earned' : ''}`,
-        position: new THREE.Vector3(Math.sin(a) * 8, 0, -Math.cos(a) * 8),
+        position: new THREE.Vector3(Math.sin(a) * 9, 0, -Math.cos(a) * 9),
         onEnter: () => game.enter(world.id),
       });
       portal.group.lookAt(spawn);
@@ -156,6 +163,78 @@ export default {
     });
     gate.group.lookAt(0, 0, 0);
 
+    const studio = k.portal({
+      tint: 0xffb7d5,
+      accent: '#ffb7d5',
+      title: 'Avatar Studio',
+      subtitle: `Customize everything · ${k.save.coins} coins`,
+      position: new THREE.Vector3(-3.3, 0, -1.3),
+      radius: 0.95,
+      onEnter: () => game.enter('avatar-studio'),
+    });
+    studio.group.lookAt(spawn);
+
+    // The room board lists who's here, with a mute button for each person.
+    const board = new THREE.Group();
+    board.position.set(3.3, 0, -1.3);
+    board.lookAt(spawn);
+    root.add(board);
+    let boardFaces = [];
+    let boardVersion = -1;
+    const rebuildBoard = () => {
+      const { net } = game;
+      boardVersion = net.rosterVersion;
+      boardFaces.forEach((f) => k.input.removeTarget(f));
+      boardFaces = [];
+      disposeTree(board);
+      board.clear();
+      const peers = [...net.peers.values()];
+      const header = makeCard({
+        title: net.inRoom ? `Room ${net.code}` : 'Playing solo',
+        body: net.inRoom
+          ? `You are ${net.myName}. ${peers.length ? `${peers.length} friend${peers.length > 1 ? 's' : ''} connected.` : 'Waiting for friends to join.'}`
+          : 'To play with friends, create or join a room from the title screen.',
+        width: 1.9,
+        accent: '#b8e986',
+      });
+      let y = 2.5 - header.geometry.parameters.height / 2;
+      header.position.y = y;
+      board.add(header);
+      y -= header.geometry.parameters.height / 2;
+      if (net.inRoom) {
+        const mic = k.button(net.micOn ? 'Mic is on' : 'Mic is off', () => net.toggleMic(), { accent: net.micOn ? '#b8e986' : '#f4efe2', width: 0.9 });
+        mic.position.set(0, y - 0.14, 0.01);
+        board.add(mic);
+        boardFaces.push(mic);
+        y -= 0.28;
+      }
+      for (const peer of peers) {
+        const where = game.worlds.get(peer.world)?.name ?? 'On the title screen';
+        const row = new Panel({ width: 1.3, height: 0.2, ppm: 400 });
+        row.paint((g, W, H) => {
+          g.fillStyle = '#18132e';
+          g.beginPath();
+          g.roundRect(0, 0, W, H, 10);
+          g.fill();
+          g.fillStyle = '#f4efe2';
+          g.font = `${H * 0.34}px ${BODY}`;
+          g.textBaseline = 'middle';
+          g.fillText(`${peer.nameText}${peer.mic ? ' (mic on)' : ''}`, 14, H * 0.32, W - 24);
+          g.fillStyle = '#b9b2cf';
+          g.font = `${H * 0.28}px ${BODY}`;
+          g.fillText(where, 14, H * 0.72, W - 24);
+        });
+        row.position.set(-0.3, y - 0.14, 0);
+        board.add(row);
+        const mute = k.button(peer.muted ? 'Unmute' : 'Mute', () => net.setPeerMuted(peer.id, !peer.muted), { accent: peer.muted ? '#ff8a4c' : '#f4efe2', width: 0.55 });
+        mute.position.set(0.68, y - 0.14, 0.01);
+        board.add(mute);
+        boardFaces.push(mute);
+        y -= 0.24;
+      }
+    };
+    rebuildBoard();
+
     const moves = k.isXR
       ? 'Move with the left stick and turn with the right. Press B or Y to come back here from any world.'
       : 'WASD to move, mouse to look. Press H to come back here from any world.';
@@ -169,7 +248,7 @@ export default {
     sign.rotation.x = -0.32;
     root.add(sign);
 
-    k.spawn(spawn.x, spawn.z);
+    k.spawnSocial(spawn.x, spawn.z);
     k.setMove(true);
     k.boundsCircle(PLAZA - 0.7);
 
@@ -177,6 +256,7 @@ export default {
 
     return {
       update(dt, t) {
+        if (boardVersion !== game.net.rosterVersion) rebuildBoard();
         for (const island of islands) {
           island.position.y = island.userData.y + Math.sin(t * 0.3 + island.userData.phase) * 0.8;
         }

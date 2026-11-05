@@ -27,6 +27,7 @@ export default {
   genre: 'Creative sandbox',
   comfort: 'Comfortable',
   color: 0xffd166,
+  shared: true,
 
   patch(g, s) {
     const n = 4;
@@ -88,8 +89,45 @@ export default {
       mesh.instanceMatrix.needsUpdate = true;
       mesh.instanceColor.needsUpdate = true;
     };
-    const persist = () => save.setWorld(def.id, { cells: [...blocks.values()].map((b) => [b.x, b.y, b.z, b.c]) });
+    // Your own build only saves when you're alone, so a shared session can't overwrite it.
+    let shared = k.net.peers().length > 0;
+    const persist = () => {
+      if (!shared) save.setWorld(def.id, { cells: [...blocks.values()].map((b) => [b.x, b.y, b.z, b.c]) });
+    };
     rebuild();
+
+    const validCell = (x, y, z, c) => [x, y, z, c].every(Number.isInteger)
+      && Math.abs(x) <= LIMIT_XZ && Math.abs(z) <= LIMIT_XZ && y >= 0 && y < LIMIT_Y && c >= 0 && c < PALETTE.length;
+    const applyEdit = ([op, x, y, z, c]) => {
+      if (op === 'add' && validCell(x, y, z, c) && blocks.size < MAX_BLOCKS) blocks.set(key(x, y, z), { x, y, z, c });
+      if (op === 'del' && validCell(x, y, z, 0)) blocks.delete(key(x, y, z));
+    };
+    let waitingForBuild = shared;
+    const editsWhileWaiting = [];
+    k.net.on('edit', (edit) => {
+      if (!Array.isArray(edit)) return;
+      shared = true;
+      if (waitingForBuild) editsWhileWaiting.push(edit);
+      applyEdit(edit);
+      rebuild();
+      sound.play(edit[0] === 'add' ? 'block' : 'unblock');
+    });
+    // Anyone already here sends the build to a player who just arrived.
+    k.net.on('ask', (_, from) => {
+      shared = true;
+      k.net.send('build', [...blocks.values()].map((b) => [b.x, b.y, b.z, b.c]), from);
+    });
+    k.net.on('build', (cells) => {
+      if (!waitingForBuild || !Array.isArray(cells) || cells.length > MAX_BLOCKS) return;
+      waitingForBuild = false;
+      blocks.clear();
+      for (const cell of cells) {
+        if (Array.isArray(cell) && validCell(...cell)) applyEdit(['add', ...cell]);
+      }
+      editsWhileWaiting.forEach(applyEdit);
+      rebuild();
+    });
+    if (waitingForBuild) k.net.send('ask');
 
     const ghost = new THREE.Mesh(
       new THREE.BoxGeometry(S, S, S),
@@ -165,6 +203,10 @@ export default {
     selectColor(0);
 
     const reset = k.button('Clear yard', () => {
+      if (k.net.peers().length > 0) {
+        k.toast('Not while friends are here', 'You can clear the yard when building alone.', '#f4efe2');
+        return;
+      }
       blocks.clear();
       rebuild();
       persist();
@@ -174,7 +216,7 @@ export default {
 
     k.exitPortal(new THREE.Vector3(-5.5, 0, 3.5)).group.lookAt(0, 0, 0);
 
-    k.spawn(0, 0);
+    k.spawnSocial(0, 0);
     k.setMove(true);
     k.boundsCircle(LIMIT_XZ * S - 0.5);
     updateBoard();
@@ -197,6 +239,7 @@ export default {
           if (hand.pressed && cast?.place && canPlace(cast.place)) {
             const [x, y, z] = cast.place;
             blocks.set(key(x, y, z), { x, y, z, c: colorIndex });
+            k.net.send('edit', ['add', x, y, z, colorIndex]);
             rebuild();
             persist();
             sound.play('block');
@@ -208,6 +251,7 @@ export default {
           if (hand.squeezed && cast?.block) {
             const b = cast.block;
             blocks.delete(key(b.x, b.y, b.z));
+            k.net.send('edit', ['del', b.x, b.y, b.z]);
             rebuild();
             persist();
             sound.play('unblock');

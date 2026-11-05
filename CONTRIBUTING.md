@@ -47,7 +47,11 @@ The best contribution is a new world. A small, finished one is worth more than a
 | `k.toast(title, body)` | Shows a message that fades away |
 | `k.portal({...})`, `k.exitPortal(position)` | Adds a portal, or a portal back to the hub |
 | `k.burst(position, color, count, speed)` | Throws a shower of shards |
+| `k.spawnSocial(x, z, yaw)` | Places the player, leaving room when friends are in the world too |
 | `k.complete()` | Awards this world's patch |
+| `k.win(coins)` | Call when the player beats the world: the patch the first time, coins every time |
+| `k.reward(coins, reason)` | Gives coins to spend in the Avatar Studio |
+| `k.prefs` | The player's customizations, such as `k.prefs.gear.ballColor` |
 | `k.ambience(frequencies, gain)` | Plays a soft background chord |
 | `k.onDispose(fn)` | Runs your own cleanup when the player leaves |
 
@@ -64,15 +68,26 @@ For clickable objects, use `k.input.addTarget(mesh, { onSelect, onEnter, onLeave
 
 **Sound.** `k.sound.play('select')` plays a named effect, and `k.sound.tone({ f, d, type, g })` and `k.sound.noise({ d, g, f })` synthesize new ones.
 
+**Multiplayer.** Friends' avatars appear in your world automatically. To share gameplay too, use these. They're safe to call when the player is alone. `block-yard.js` is the working example.
+
+- `k.net.peers()`: the other players in this world
+- `k.net.send(type, data, to)`: sends a message to everyone here, or just to `to` if you give a player's id
+- `k.net.on(type, (data, from) => {})`: receives a message
+
+**Never trust a message from another player.** Check every value's type and range before you use it. Set `seats: true` on your world if everyone stands in one spot, and friends will be drawn beside you.
+
+**Customization.** To add an avatar item, add it to `CATALOG` in `src/engine/prefs.js` and draw it in `src/engine/avatar.js`. A cost above zero makes it an unlock. To add a setting, add its default to `DEFAULT_PREFS`, clean it in `loadPrefs`, and add a row to `TABS` in `src/worlds/avatar-studio.js`.
+
 **Saving.** `k.save.world(id)` and `k.save.setWorld(id, value)` store a small JSON value for your world, using the world's `id`.
 
 ## Before you open a pull request
 
 - Win your world and lose it, on desktop and with `?emulate` or a real headset.
 - Run the bot from the README to check you didn't break another world.
+- If your world uses multiplayer, test it with two tabs using `?net=local`.
 - Check the browser console for errors.
 - Say in the pull request which device you tested on.
 
 ## Bigger work
 
-Multiplayer, comfort options, performance and engine changes are all welcome. Please open an issue to discuss the approach first.
+Shared gameplay, comfort options, performance and engine changes are all welcome. Please open an issue to discuss the approach first.

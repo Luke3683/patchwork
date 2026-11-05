@@ -51,6 +51,17 @@
   #quilt-row { display: flex; gap: 6px; padding: 0 8px; }
   .swatch { width: 44px; height: 44px; border-radius: 4px; outline: 2px dashed var(--cloth); outline-offset: -2px; }
   .swatch.unearned { opacity: 0.28; }
+  .room { display: flex; flex-direction: column; gap: 8px; padding: 12px 8px 0; border-top: 1px solid rgb(244 239 226 / 0.2); }
+  .room h2 { margin: 0; font: 400 1rem var(--display); color: var(--cloth); }
+  .room .small { padding: 0; }
+  .row.tight { padding: 0; align-items: center; }
+  #room-code {
+    box-sizing: border-box; width: 8.5em; min-width: 0; padding: 11px 12px; border-radius: 8px; border: 2px solid var(--muted);
+    background: transparent; color: var(--cloth); font: 700 1rem var(--body); letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  #room-code:focus-visible { outline: 3px solid var(--ember); outline-offset: 2px; }
+  #room-name { color: var(--thread); font-weight: 700; letter-spacing: 0.06em; }
+  button.quiet { font: 400 0.9rem var(--display); padding: 9px 12px; background: var(--cloth); }
   .small { margin: 0; padding: 0 8px; color: var(--muted); font-size: 0.9rem; line-height: 1.4; }
   .small-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
   #reset { font: 400 0.9rem var(--body); background: none; color: var(--muted); padding: 0; text-decoration: underline; border-radius: 2px; }
@@ -84,6 +95,21 @@
       <button id="enter-vr" hidden>Enter VR</button>
       <button id="play-desktop" class="secondary">Play on desktop</button>
     </div>
+    <div class="room">
+      <h2>Play with friends</h2>
+      <div class="row tight" id="room-setup">
+        <button id="room-create" class="quiet">Create a room</button>
+        <input id="room-code" maxlength="6" placeholder="Room code" autocomplete="off" spellcheck="false" aria-label="Room code">
+        <button id="room-join" class="quiet">Join</button>
+      </div>
+      <div class="row tight" id="room-live" hidden>
+        <span>Room <span id="room-name"></span></span>
+        <button id="room-copy" class="quiet">Copy invite link</button>
+        <button id="room-mic" class="quiet">Turn on mic</button>
+        <button id="room-leave" class="quiet">Leave</button>
+      </div>
+      <p class="small" id="room-status">Share a room code only with people you trust. Players connect directly, so people in your room can see your IP address.</p>
+    </div>
     <div id="quilt-row" aria-hidden="true"></div>
     <div class="small small-row">
       <span id="quilt-count"></span>
@@ -93,7 +119,7 @@
   </div>
 </section>
 
-<div id="legend">WASD move · Mouse look · Click use · H back to the hub · Esc free the mouse</div>
+<div id="legend">WASD move · Mouse look · Click use · H back to the hub · M mic · Esc free the mouse</div>
 <div id="crosshair"></div>
 
 <script type="module" src="src/main.js"></script>
