@@ -54,6 +54,13 @@ export class Input {
     this.look = { active: false, moved: 0 };
     this.snapLatch = false;
     this.menuLatch = false;
+    this.free = false; // the world handles movement, turning and face buttons itself
+    this.allowTurn = false; // with free, whether the right stick still turns the player
+    this.cursor = false; // desktop: the mouse is a normal cursor, as in a menu
+    this.lastLook = 0;
+    this.axes = { moveX: 0, moveY: 0, lookX: 0, lookY: 0, triggerL: 0, triggerR: 0, gripL: 0, gripR: 0 };
+    this.buttons = { a: false, b: false, x: false, y: false }; // true for one frame
+    this.buttonsHeld = { a: false, b: false, x: false, y: false };
 
     this.mouse = new Hand('mouse', new THREE.Group());
     this.mouse.obj.position.set(0.3, -0.26, -0.7);
@@ -115,7 +122,7 @@ export class Input {
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('mousedown', (e) => {
       if (!this.enabled || this.game.isXR) return;
-      if (!this.locked && !this.lockFailed && e.button === 0) {
+      if (!this.locked && !this.lockFailed && !this.cursor && e.button === 0) {
         this.requestLock();
         return;
       }
@@ -139,6 +146,7 @@ export class Input {
         const dy = THREE.MathUtils.clamp(e.movementY, -200, 200);
         const sens = 0.0022 * this.game.prefs.comfort.sensitivity;
         this.look.moved += Math.abs(dx) + Math.abs(dy);
+        this.lastLook = performance.now();
         this.game.rig.rotation.y -= dx * sens;
         this.pitch = THREE.MathUtils.clamp(this.pitch - dy * sens, -1.45, 1.45);
       }
@@ -218,12 +226,18 @@ export class Input {
 
   updateDesktop(dt) {
     const { rig } = this.game;
-    const turn = (this.keys.has('KeyE') || this.keys.has('ArrowRight') ? 1 : 0)
-      - (this.keys.has('KeyQ') || this.keys.has('ArrowLeft') ? 1 : 0);
-    rig.rotation.y -= turn * dt * 1.8;
-    const lookV = (this.keys.has('ArrowUp') ? 1 : 0) - (this.keys.has('ArrowDown') ? 1 : 0);
-    this.pitch = THREE.MathUtils.clamp(this.pitch + lookV * dt * 1.2, -1.45, 1.45);
+    if (!this.free) {
+      const turn = (this.keys.has('KeyE') || this.keys.has('ArrowRight') ? 1 : 0)
+        - (this.keys.has('KeyQ') || this.keys.has('ArrowLeft') ? 1 : 0);
+      rig.rotation.y -= turn * dt * 1.8;
+      const lookV = (this.keys.has('ArrowUp') ? 1 : 0) - (this.keys.has('ArrowDown') ? 1 : 0);
+      this.pitch = THREE.MathUtils.clamp(this.pitch + lookV * dt * 1.2, -1.45, 1.45);
+    }
     this.applyDesktopCamera(false);
+
+    const a = this.axes;
+    a.moveX = (this.keys.has('KeyD') || this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('KeyA') || this.keys.has('ArrowLeft') ? 1 : 0);
+    a.moveY = (this.keys.has('KeyW') || this.keys.has('ArrowUp') ? 1 : 0) - (this.keys.has('KeyS') || this.keys.has('ArrowDown') ? 1 : 0);
 
     if (this.keyPressed('KeyH') || this.keyPressed('Tab')) this.game.goHome();
     if (this.keyPressed('KeyM')) this.game.net.toggleMic();
@@ -245,13 +259,45 @@ export class Input {
     let menu = false;
     let mic = false;
     let snap = 0;
+    const axes = this.axes;
+    const held = { a: false, b: false, x: false, y: false };
+    axes.moveX = 0;
+    axes.moveY = 0;
+    axes.lookX = 0;
+    axes.lookY = 0;
+    axes.triggerL = 0;
+    axes.triggerR = 0;
+    axes.gripL = 0;
+    axes.gripR = 0;
     for (const hand of this.controllers) {
       const pad = hand.source?.gamepad;
       if (!pad) continue;
-      if (pad.buttons[5]?.pressed) menu = true;
-      if (pad.buttons[4]?.pressed) mic = true;
+      const isLeft = hand.source.handedness === 'left';
+      const lower = !!pad.buttons[4]?.pressed; // A on the right hand, X on the left
+      const upper = !!pad.buttons[5]?.pressed; // B on the right hand, Y on the left
+      if (upper && !this.free) menu = true;
+      if (lower && isLeft) mic = true;
+      if (isLeft) {
+        held.x = lower;
+        held.y = upper;
+      } else {
+        held.a = lower;
+        held.b = upper;
+      }
       const ax = pad.axes.length >= 4 ? pad.axes[2] : pad.axes[0] ?? 0;
       const ay = pad.axes.length >= 4 ? pad.axes[3] : pad.axes[1] ?? 0;
+      const dead = (n) => (Math.abs(n) < 0.12 ? 0 : n);
+      if (isLeft) {
+        axes.moveX = dead(ax);
+        axes.moveY = -dead(ay);
+        axes.triggerL = pad.buttons[0]?.value ?? 0;
+        axes.gripL = pad.buttons[1]?.value ?? 0;
+      } else {
+        axes.lookX = dead(ax);
+        axes.lookY = -dead(ay);
+        axes.triggerR = pad.buttons[0]?.value ?? 0;
+        axes.gripR = pad.buttons[1]?.value ?? 0;
+      }
       if (hand.source.handedness === 'left' && this.locomotion) {
         if (Math.hypot(ax, ay) > 0.15) {
           camera.getWorldDirection(v1).setY(0).normalize();
@@ -268,7 +314,12 @@ export class Input {
     if (mic && !this.micLatch) this.game.net.toggleMic();
     this.micLatch = mic;
 
-    if (!this.locomotion) return;
+    for (const name of Object.keys(held)) {
+      this.buttons[name] = held[name] && !this.buttonsHeld[name];
+      this.buttonsHeld[name] = held[name];
+    }
+
+    if (!this.locomotion && !this.allowTurn) return;
     if (turn === 'smooth') {
       if (Math.abs(snap) > 0.2) this.turnAroundHead(-snap * dt * 1.5);
     } else if (Math.abs(snap) > 0.6) {
@@ -380,6 +431,9 @@ export class Input {
     this.locomotion = false;
     this.lasers = true;
     this.bounds = null;
+    this.free = false;
+    this.allowTurn = false;
+    this.cursor = false;
     for (const hand of [this.mouse, ...this.controllers]) hand.mount.clear();
     document.body.classList.remove('aiming');
   }

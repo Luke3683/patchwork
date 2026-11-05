@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
-export const DISPLAY = '"Bowlby One", Impact, "Arial Black", sans-serif';
-export const BODY = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
+export const DISPLAY = '"Anton", Impact, "Arial Narrow", sans-serif';
+export const BODY = '"Barlow", "Segoe UI", system-ui, sans-serif';
 const PPM = 420; // canvas pixels per meter of panel
 
 /** A flat rectangle in the world you can draw on with the 2D canvas API. */
@@ -32,7 +32,7 @@ export class Panel extends THREE.Mesh {
   }
 
   /** Draws a stitched label. Repaints only when the content changed. */
-  card({ title = '', body = '', accent = '#ffd166' }) {
+  card({ title = '', body = '', accent = '#ff5c4d' }) {
     const key = `${title}|${body}|${accent}`;
     if (key !== this.lastCard) {
       this.lastCard = key;
@@ -60,24 +60,17 @@ export function wrapText(g, text, maxWidth) {
   return out;
 }
 
-const TITLE_M = 0.105;
-const BODY_M = 0.068;
+const TITLE_M = 0.125;
+const BODY_M = 0.07;
 const PAD_M = 0.1;
 const LEADING = 1.32;
 
 function drawCard(g, W, H, ppm, { title, body, accent }) {
   const pad = PAD_M * ppm;
-  g.fillStyle = '#18132e';
-  g.beginPath();
-  g.roundRect(0, 0, W, H, 0.035 * ppm);
-  g.fill();
-  g.strokeStyle = accent;
-  g.lineWidth = 0.008 * ppm;
-  g.setLineDash([0.03 * ppm, 0.02 * ppm]);
-  g.beginPath();
-  g.roundRect(0.03 * ppm, 0.03 * ppm, W - 0.06 * ppm, H - 0.06 * ppm, 0.02 * ppm);
-  g.stroke();
-  g.setLineDash([]);
+  g.fillStyle = 'rgba(7,22,31,0.94)';
+  g.fillRect(0, 0, W, H);
+  g.fillStyle = accent;
+  g.fillRect(0, 0, W, 0.012 * ppm);
 
   g.textBaseline = 'top';
   let y = pad;
@@ -122,16 +115,14 @@ export function makeCard(opts) {
   return new Panel({ width, height: cardHeight({ ...opts, width }), side: opts.side }).card(opts);
 }
 
-export function makeButtonFace(label, accent = '#ffd166', width = 0.72) {
+export function makeButtonFace(label, accent = '#ff5c4d', width = 0.72) {
   const height = 0.2;
   const panel = new Panel({ width, height, ppm: 500 });
   panel.paint((g, W, H) => {
     g.fillStyle = accent;
-    g.beginPath();
-    g.roundRect(0, 0, W, H, 0.03 * 500);
-    g.fill();
-    g.fillStyle = '#18132e';
-    g.font = `${0.062 * 500}px ${DISPLAY}`;
+    g.fillRect(0, 0, W, H);
+    g.fillStyle = '#07161f';
+    g.font = `${0.086 * 500}px ${DISPLAY}`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.fillText(label, W / 2, H / 2 + 2);

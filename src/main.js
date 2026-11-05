@@ -1,6 +1,7 @@
 import { Game } from './engine/game.js';
 import { worlds } from './worlds/index.js';
 import { Net } from './engine/net.js';
+import { preloadTextures } from './worlds/meridian/textures.js';
 
 const params = new URLSearchParams(location.search);
 const $ = (id) => document.getElementById(id);
@@ -15,7 +16,7 @@ async function boot() {
   }
 
   await Promise.race([
-    Promise.all([document.fonts.load('40px "Bowlby One"'), document.fonts.load('20px "Atkinson Hyperlegible"')]),
+    Promise.all([document.fonts.load('40px "Anton"'), document.fonts.load('600 20px "Barlow"')]),
     new Promise((resolve) => setTimeout(resolve, 1500)),
   ]).catch(() => {});
 
@@ -28,7 +29,13 @@ async function boot() {
   if (game.worlds.has(params.get('world'))) game.startWorld = params.get('world');
 
   renderSwatches(game);
-  await game.enter('hub');
+  await preloadTextures(game.look.high, (done, total) => {
+    $('vr-note').textContent = `Loading materials ${done} of ${total}…`;
+  });
+  $('vr-note').textContent = 'Building the island…';
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  await game.enter('meridian');
+  $('vr-note').textContent = '';
 
   const hideTitle = () => document.body.classList.add('playing');
   const showTitle = () => {
@@ -70,7 +77,7 @@ async function boot() {
   $('reset').addEventListener('click', () => {
     game.save.reset();
     renderSwatches(game);
-    game.enter('hub');
+    location.reload();
   });
 }
 
@@ -82,10 +89,14 @@ function setupRooms(game) {
   const idleStatus = invite
     ? `You've been invited to room ${invite}. Press Join if you trust who sent this. People in the room can see your IP address.`
     : defaultStatus;
-  if (invite) $('room-code').value = invite;
+  if (invite) {
+    $('room-code').value = invite;
+    $('friends').open = true;
+  }
 
   const render = () => {
     const live = net.status === 'online' || net.status === 'connecting';
+    if (live) $('friends').open = true;
     $('room-setup').hidden = live;
     $('room-live').hidden = !live;
     $('room-name').textContent = net.code ?? '';
@@ -147,21 +158,22 @@ function renderSwatches(game) {
   const { list, done } = game.quilt;
   for (const world of list) {
     const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 96;
+    canvas.width = canvas.height = 52;
     canvas.className = 'swatch';
     canvas.title = world.name;
     const earned = game.save.hasPatch(world.id);
     const g = canvas.getContext('2d');
     if (earned) {
-      world.patch(g, 96);
+      world.patch(g, 52);
     } else {
       g.fillStyle = `#${world.color.toString(16).padStart(6, '0')}`;
-      g.fillRect(0, 0, 96, 96);
+      g.fillRect(0, 0, 52, 52);
       canvas.classList.add('unearned');
     }
     row.append(canvas);
   }
-  $('quilt-count').textContent = `${done.length} of ${list.length} patches earned · ${game.save.coins} coins`;
+  const level = game.save.world('meridian')?.level ?? 1;
+  $('quilt-count').textContent = `Level ${level} · $${game.save.coins} · ${done.length} of ${list.length} patches`;
   $('reset').hidden = done.length === 0;
 }
 

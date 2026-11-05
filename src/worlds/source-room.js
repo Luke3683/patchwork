@@ -43,7 +43,7 @@ export default {
 
     const code = new Panel({ width: 2.6, height: 1.32, ppm: 300 });
     code.paint((g, W, H) => {
-      g.fillStyle = '#18132e';
+      g.fillStyle = '#07161f';
       g.beginPath();
       g.roundRect(0, 0, W, H, 12);
       g.fill();
@@ -54,7 +54,7 @@ export default {
       g.fillStyle = '#f4efe2';
       CODE.forEach((line, i) => g.fillText(line, 30, 66 + i * 0.1 * 300 * 0.78));
       g.font = `${0.062 * 300}px ${BODY}`;
-      g.fillStyle = '#ffd166';
+      g.fillStyle = '#ff5c4d';
       g.fillText('Add it to src/worlds/index.js and its portal appears.', 30, H - 40);
     });
     code.position.set(1.4, 1.7, -4.2);

@@ -90,6 +90,17 @@ export class Sound {
         this.noise({ d: 0.07, g: 0.1, f: 1800 });
         return this.tone({ f: 240, d: 0.09, type: 'triangle', g: 0.14 });
       case 'unblock': return this.tone({ f: 180, d: 0.09, type: 'triangle', g: 0.1, slide: -70 });
+      case 'crash':
+        this.noise({ d: 0.4, g: 0.3, f: 900 });
+        return this.tone({ f: 90, d: 0.35, type: 'square', g: 0.2, slide: -50 });
+      case 'levelup':
+        [392, 523, 659, 784, 1047, 1319].forEach((f, i) => this.tone({ f, at: n + i * 0.08, d: 0.5, type: 'triangle', g: 0.13 }));
+        return undefined;
+      case 'pickup':
+        [880, 1319].forEach((f, i) => this.tone({ f, at: n + i * 0.07, d: 0.25, type: 'triangle', g: 0.12 }));
+        return undefined;
+      case 'gate':
+        return this.tone({ f: 660, d: 0.22, type: 'triangle', g: 0.16, slide: 220 });
       case 'patch':
         [523, 659, 784, 1047].forEach((f, i) => this.tone({ f, at: n + i * 0.11, d: 0.45, type: 'triangle', g: 0.14 }));
         return undefined;
@@ -98,6 +109,67 @@ export class Sound {
         return undefined;
       default: return undefined;
     }
+  }
+
+  /** A looping motor. Call set(pitch, level) every frame, and stop() when done. */
+  engine() {
+    if (!this.running) return { set() {}, stop() {} };
+    const ctx = this.ctx;
+    const amp = ctx.createGain();
+    amp.gain.value = 0;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 800;
+    filter.connect(amp).connect(this.master);
+    const oscs = [['sawtooth', 1], ['square', 0.5], ['sawtooth', 2.01]].map(([type, ratio]) => {
+      const osc = ctx.createOscillator();
+      osc.type = type;
+      osc.connect(filter);
+      osc.start();
+      return { osc, ratio };
+    });
+    return {
+      set: (pitch, level) => {
+        const t = ctx.currentTime;
+        for (const { osc, ratio } of oscs) osc.frequency.setTargetAtTime(pitch * ratio, t, 0.05);
+        filter.frequency.setTargetAtTime(300 + pitch * 7, t, 0.05);
+        amp.gain.setTargetAtTime(level, t, 0.05);
+      },
+      stop: () => {
+        amp.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+        oscs.forEach(({ osc }) => osc.stop(ctx.currentTime + 0.3));
+      },
+    };
+  }
+
+  /** Looping filtered noise, for wind and water. Call set(level, brightness). */
+  breeze() {
+    if (!this.running) return { set() {}, stop() {} };
+    const ctx = this.ctx;
+    const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 500;
+    const amp = ctx.createGain();
+    amp.gain.value = 0;
+    src.connect(filter).connect(amp).connect(this.master);
+    src.start();
+    return {
+      set: (level, brightness = 500) => {
+        const t = ctx.currentTime;
+        amp.gain.setTargetAtTime(level, t, 0.1);
+        filter.frequency.setTargetAtTime(brightness, t, 0.1);
+      },
+      stop: () => {
+        amp.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+        src.stop(ctx.currentTime + 0.3);
+      },
+    };
   }
 
   /** A soft held chord. Returns a function that stops it. */

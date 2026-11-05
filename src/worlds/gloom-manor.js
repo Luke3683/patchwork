@@ -64,7 +64,7 @@ export default {
     g.closePath();
     g.fill();
     g.fillRect(s * 0.24, s * 0.42, s * 0.52, s * 0.42);
-    g.fillStyle = '#ffd166';
+    g.fillStyle = '#ff5c4d';
     g.fillRect(s * 0.32, s * 0.52, s * 0.12, s * 0.12);
     g.fillRect(s * 0.56, s * 0.52, s * 0.12, s * 0.12);
     g.fillStyle = '#0a0812';

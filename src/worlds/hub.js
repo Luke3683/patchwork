@@ -65,7 +65,7 @@ export default {
       : SKIES[plaza.sky];
     const FABRICS = FLOORS[plaza.floor];
     k.sky({ ...sky, stars: plaza.stars === 'on' ? 500 : 0 });
-    k.lights({ sky: 0xc9c0ff, ground: 0x5b3a55, sun: 0xffc48a, ambient: 1.7, direct: 2.2, dir: [-0.6, 0.45, 0.8] });
+    k.lights({ sky: 0xbfe8ff, ground: 0x2f5d66, sun: 0xffc48a, ambient: 1.7, direct: 2.2, dir: [-0.6, 0.45, 0.8] });
     k.fog(new THREE.Color(sky.mid).lerp(new THREE.Color(sky.horizon), 0.35).getHex(), 45, 300);
     k.ambience([110, 164.8, 220, 277.2], 0.014);
 
@@ -163,6 +163,17 @@ export default {
     });
     gate.group.lookAt(0, 0, 0);
 
+    const island = k.portal({
+      tint: 0xff7a2e,
+      accent: '#ff7a2e',
+      title: 'Meridian',
+      subtitle: 'The open world',
+      position: new THREE.Vector3(0, 0, -3.6),
+      radius: 1.5,
+      onEnter: () => game.enter('meridian'),
+    });
+    island.group.lookAt(spawn);
+
     const studio = k.portal({
       tint: 0xffb7d5,
       accent: '#ffb7d5',
@@ -212,7 +223,7 @@ export default {
         const where = game.worlds.get(peer.world)?.name ?? 'On the title screen';
         const row = new Panel({ width: 1.3, height: 0.2, ppm: 400 });
         row.paint((g, W, H) => {
-          g.fillStyle = '#18132e';
+          g.fillStyle = '#07161f';
           g.beginPath();
           g.roundRect(0, 0, W, H, 10);
           g.fill();
@@ -220,7 +231,7 @@ export default {
           g.font = `${H * 0.34}px ${BODY}`;
           g.textBaseline = 'middle';
           g.fillText(`${peer.nameText}${peer.mic ? ' (mic on)' : ''}`, 14, H * 0.32, W - 24);
-          g.fillStyle = '#b9b2cf';
+          g.fillStyle = '#a9c0c7';
           g.font = `${H * 0.28}px ${BODY}`;
           g.fillText(where, 14, H * 0.72, W - 24);
         });
@@ -242,7 +253,7 @@ export default {
       title: 'Earn every patch',
       body: `Aim at a portal and pull the trigger, or walk straight into it. ${moves}`,
       width: 1.75,
-      accent: '#ffd166',
+      accent: '#ff5c4d',
     });
     sign.position.set(0, 1.12, 0.7);
     sign.rotation.x = -0.32;

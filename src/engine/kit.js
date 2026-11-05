@@ -43,7 +43,6 @@ export class Kit {
     this.sound = game.sound;
     this.save = game.save;
     this.prefs = game.prefs;
-    this.isXR = game.isXR;
 
     this.root = new THREE.Group();
     this.scene.add(this.root);
@@ -62,8 +61,14 @@ export class Kit {
     };
 
     this.scene.fog = null;
+    this.proximityPos = null; // a world with its own camera says where the body is
+    game.look.set(def.look);
     this.input.reset();
     this.spawn(0, 0, 0);
+  }
+
+  get isXR() {
+    return this.game.isXR;
   }
 
   // --- Player -------------------------------------------------------------
@@ -214,7 +219,7 @@ export class Kit {
    * A card with buttons, placed relative to the player at [x, z] and at eye height.
    * buttons: [{ label, onSelect, accent }]. Call .close() to remove it.
    */
-  menu({ title, body, buttons = [], at = [0, -2.3], width = 1.8, accent }) {
+  menu({ title, body, buttons = [], at = [0, -2.3], width = 1.8, accent, onTop = false }) {
     const group = new THREE.Group();
     const card = makeCard({ title, body, width, accent });
     group.add(card);
@@ -230,6 +235,7 @@ export class Kit {
     this.rig.localToWorld(v1);
     group.position.set(v1.x, this.head(v2).y + 0.02, v1.z);
     group.rotation.y = this.rig.rotation.y + Math.atan2(-at[0], -at[1]);
+    if (onTop) keepOnTop(group);
     this.root.add(group);
     return {
       group,
@@ -242,7 +248,7 @@ export class Kit {
   }
 
   /** A short message that appears in front of the player and fades away. */
-  toast(title, body = '', accent = '#ffd166') {
+  toast(title, body = '', accent = '#ff5c4d') {
     const card = makeCard({ title, body, width: 1.5, accent });
     card.material.depthTest = false;
     card.renderOrder = 50;
@@ -359,7 +365,7 @@ export class Kit {
   /** Coins to spend in the Avatar Studio. */
   reward(coins, reason = 'Nice work') {
     this.save.addCoins(coins);
-    this.toast(`+${coins} coins`, reason, '#ffd166');
+    this.toast(`+${coins} coins`, reason, '#ff5c4d');
   }
 
   /** Call when the player beats the world: the patch the first time, coins every time. */
@@ -385,7 +391,8 @@ export class Kit {
     if (this.skyObj) this.skyObj.position.copy(this.rig.position);
 
     if (this.portals.length) {
-      this.head(v1);
+      if (this.proximityPos) v1.copy(this.proximityPos());
+      else this.head(v1);
       for (const p of this.portals) {
         p.uniforms.time.value = t;
         if (!this.input.enabled || p.used || p.locked) continue;
@@ -433,6 +440,17 @@ export class Kit {
     for (const hand of [this.input.mouse, ...this.input.controllers]) disposeTree(hand.mount);
     this.input.reset();
   }
+}
+
+/** Draws an object over everything else, so a menu can't end up inside a wall. */
+export function keepOnTop(group) {
+  group.traverse((obj) => {
+    if (obj.material) {
+      obj.material.depthTest = false;
+      obj.material.depthWrite = false;
+      obj.renderOrder = 60;
+    }
+  });
 }
 
 export function disposeTree(root) {

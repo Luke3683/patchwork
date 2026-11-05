@@ -6,7 +6,7 @@ const LIMIT_Y = 30;
 const MAX_BLOCKS = 4000;
 const GOAL = 12;
 const REACH = 16;
-const ACCENT = '#ffd166';
+const ACCENT = '#ff5c4d';
 const PALETTE = [0xe4572e, 0xf3a712, 0xf7e7ce, 0x76b041, 0x2e86ab, 0x7d4ea8, 0x3d3a4b, 0xff9fb2];
 const key = (x, y, z) => `${x},${y},${z}`;
 

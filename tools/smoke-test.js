@@ -19,6 +19,7 @@ export async function run() {
   G.started = true;
   G.input.enabled = true;
   G.input.lockFailed = true;
+  G.look.lowPower = true;
   const savedPrefs = JSON.stringify(G.prefs);
 
   const step = (seconds = DT, each) => {
@@ -260,7 +261,7 @@ export async function run() {
   }
   results['every avatar option builds'] = built > 30;
   const evil = sanitizeLook({ head: '<script>', hat: 42, primary: 'red', headSize: 1e9, bodySize: NaN, aura: null });
-  results['bad avatar data is cleaned'] = evil.head === 'orb' && evil.hat === 'none' && evil.primary === DEFAULT_PREFS.look.primary
+  results['bad avatar data is cleaned'] = evil.head === DEFAULT_PREFS.look.head && evil.hat === 'none' && evil.primary === DEFAULT_PREFS.look.primary
     && evil.headSize === 1.4 && evil.bodySize === 1;
   results['bad names are cleaned'] = displayName(sanitizeName(['x', 99999])).length > 0 && displayName(sanitizeName(null)).length > 0;
 

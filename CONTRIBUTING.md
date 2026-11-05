@@ -10,7 +10,27 @@ The best contribution is a new world. A small, finished one is worth more than a
 4. Open `http://localhost:8000/?world=your-world` and press Play to jump straight in.
 5. Build the world, call `k.complete()` when the player earns the patch, and open a pull request.
 
+## Add to Meridian
+
+The open world lives in `src/worlds/meridian/`, split by job:
+
+| File | What it holds |
+| --- | --- |
+| `terrain.js` | The island's shape, roads, flat areas and water |
+| `city.js` | Buildings, signs, street lights and landmarks |
+| `models.js`, `vehicles.js` | What vehicles look like and how they handle |
+| `player.js` | Walking, the jetpack, getting in and out, and the camera |
+| `progress.js` | Levels, upgrades and unlocks |
+| `activities.js` | Races, courier jobs, shards and places to discover |
+| `crime.js`, `npc.js` | Stealing, fights, wanted levels, police, and everyone on the street |
+| `textures.js`, `foliage.js` | Photo materials, trees and grass |
+| `hud.js`, `index.js` | The on-screen display, the menu, traffic, crowds, and how it all fits together |
+
+Good first additions: a new race in `activities.js`, a new upgrade in `progress.js`, or a new landmark in `city.js`. If you add something to the map, run `tools/meridian-test.js` to catch buried or walled-in vehicles.
+
 ## The rules
+
+**Keep the violence cartoonish.** Fights knock people down, and they get back up. No gore, no sexual content, and nothing that targets real groups of people or makes sexual violence or attacks on sex workers part of the game.
 
 **Everything must be original.** This is the one rule with no exceptions. Don't add characters, names, logos, music, maps or designs from movies, games, shows, books or brands, even as a tribute or a small cameo. A genre or a mechanic is fine: a racing world is welcome, a recreation of a specific racing game isn't. One borrowed character could put the whole project at legal risk.
 

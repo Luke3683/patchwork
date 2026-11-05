@@ -5,6 +5,7 @@ import { Save } from './save.js';
 import { Kit } from './kit.js';
 import { Net } from './net.js';
 import { loadPrefs } from './prefs.js';
+import { Look } from './look.js';
 
 /** Owns the renderer, the player rig and the currently loaded world. */
 export class Game {
@@ -43,6 +44,7 @@ export class Game {
     this.sound = new Sound();
     this.input = new Input(this);
     this.prefs = loadPrefs(this.save.data.prefs);
+    this.look = new Look(this);
     this.net = new Net(this);
     this.applyPrefs();
 
@@ -51,6 +53,8 @@ export class Game {
       this.camera.aspect = innerWidth / innerHeight;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(innerWidth, innerHeight, false);
+      const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+      this.look.resize(size.x, size.y);
     });
 
     this.clock = new THREE.Clock();
@@ -97,7 +101,7 @@ export class Game {
     if (this.world && !this.busy) this.world.update?.(dt, this.time);
     this.kit?.update(dt, this.time);
     this.updateFade(dt);
-    this.renderer.render(this.scene, this.camera);
+    this.look.render(dt);
   }
 
   updateFade(dt) {
@@ -159,7 +163,15 @@ export class Game {
   start() {
     this.started = true;
     this.sound.unlock();
-    return this.enter(this.startWorld ?? 'hub');
+    const target = this.startWorld ?? this.currentId ?? 'hub';
+    // The title screen already runs inside the first world, so there's nothing to rebuild.
+    if (target === this.currentId && !this.busy) {
+      this.input.enabled = true;
+      this.net.worldChanged();
+      this.world?.onStart?.();
+      return Promise.resolve();
+    }
+    return this.enter(target);
   }
 
   async enterVR() {

@@ -1,3 +1,4 @@
+import meridian from './meridian/index.js';
 import hub from './hub.js';
 import ringRun from './ring-run.js';
 import droneRange from './drone-range.js';
@@ -12,6 +13,7 @@ import sourceRoom from './source-room.js';
 
 // Add your world here and its portal and quilt patch appear in the hub.
 export const worlds = [
+  meridian,
   hub,
   ringRun,
   droneRange,

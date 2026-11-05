@@ -5,26 +5,28 @@ const free = (id, name) => ({ id, name, cost: 0 });
 const paid = (id, name, cost) => ({ id, name, cost });
 
 export const CATALOG = {
-  head: [free('orb', 'Orb'), free('cube', 'Cube'), free('gem', 'Gem'), free('capsule', 'Capsule'), paid('lantern', 'Lantern', 60)],
-  eyes: [free('visor', 'Visor'), free('dots', 'Dots'), free('cyclops', 'Cyclops'), paid('shades', 'Shades', 20), free('none', 'None')],
+  head: [free('person', 'Person'), free('orb', 'Orb'), free('cube', 'Cube'), free('gem', 'Gem'), free('capsule', 'Capsule'), paid('lantern', 'Lantern', 60)],
+  eyes: [free('none', 'Natural'), free('visor', 'Visor'), free('dots', 'Dots'), free('cyclops', 'Cyclops'), paid('shades', 'Shades', 20)],
   hat: [
     free('none', 'None'), free('cap', 'Cap'), free('beanie', 'Beanie'), free('antenna', 'Antenna'),
     paid('mohawk', 'Mohawk', 20), paid('horns', 'Horns', 30), paid('tophat', 'Top hat', 30),
     paid('wizard', 'Wizard hat', 40), paid('halo', 'Halo', 50), paid('crown', 'Crown', 60),
   ],
-  body: [free('tunic', 'Tunic'), free('robot', 'Robot'), free('slim', 'Slim'), paid('barrel', 'Barrel', 20), paid('ghost', 'Ghost', 30)],
+  body: [free('human', 'Human'), free('tunic', 'Tunic'), free('robot', 'Robot'), free('slim', 'Slim'), paid('barrel', 'Barrel', 20), paid('ghost', 'Ghost', 30)],
   back: [free('none', 'None'), free('cape', 'Cape'), free('pack', 'Backpack'), paid('jetpack', 'Jetpack', 60), paid('wings', 'Wings', 80)],
-  hands: [free('mitts', 'Mitts'), free('orbs', 'Orbs'), free('cubes', 'Cubes'), paid('claws', 'Claws', 25)],
+  hands: [free('hand', 'Hands'), free('mitts', 'Mitts'), free('orbs', 'Orbs'), free('cubes', 'Cubes'), paid('claws', 'Claws', 25)],
   aura: [free('none', 'None'), paid('sparkle', 'Sparkle', 40), paid('embers', 'Embers', 50), paid('rings', 'Rings', 60)],
   blaster: [free('compact', 'Compact'), free('long', 'Long'), paid('round', 'Round', 25)],
   sky: [free('dusk', 'Dusk'), free('dawn', 'Dawn'), free('night', 'Night'), free('noon', 'Noon'), free('custom', 'My colors')],
   floor: [free('quilt', 'Quilt'), free('ocean', 'Ocean'), free('forest', 'Forest'), free('ember', 'Ember'), free('mono', 'Mono')],
   turn: [free('snap', 'Snap'), free('smooth', 'Smooth')],
   stars: [free('on', 'On'), free('off', 'Off')],
+  graphics: [free('high', 'High'), free('low', 'Low')],
+  vignette: [free('on', 'On'), free('off', 'Off')],
 };
 
 export const SKIES = {
-  dusk: { top: 0x15123a, mid: 0x4b2f7c, horizon: 0xf2995a, bottom: 0x1a1238 },
+  dusk: { top: 0x0d2c5e, mid: 0x1f7a8c, horizon: 0xff8a5c, bottom: 0x0a2233 },
   dawn: { top: 0x3f6fb5, mid: 0xc9a3c7, horizon: 0xffd9a8, bottom: 0x4a3f6b },
   night: { top: 0x03040f, mid: 0x0b1433, horizon: 0x1f3560, bottom: 0x02030a },
   noon: { top: 0x2f7fd8, mid: 0x86c5f0, horizon: 0xe6f5ff, bottom: 0x5a7a9c },
@@ -40,13 +42,13 @@ export const FLOORS = {
 
 export const DEFAULT_PREFS = {
   look: {
-    head: 'orb', eyes: 'visor', hat: 'none', body: 'tunic', back: 'none', hands: 'mitts', aura: 'none',
+    head: 'person', eyes: 'none', hat: 'none', body: 'human', back: 'none', hands: 'hand', aura: 'none',
     headSize: 1, bodySize: 1,
-    primary: 0x4f7f8f, secondary: 0xe3d3b4, accent: 0xffd166,
+    primary: 0xff5c4d, secondary: 0x16242c, accent: 0xffd166, skin: 0xd9a57c, hair: 0x2a1c14,
   },
   gear: { blaster: 'compact', blasterColor: 0xd9e4e0, sledColor: 0x24325f, laserColor: 0xfff2c9, gloveColor: 0xf4efe2, ballColor: 0xff8a4c },
   plaza: { sky: 'dusk', skyTop: 0x123456, skyHorizon: 0xff9966, floor: 'quilt', stars: 'on' },
-  comfort: { speed: 3.2, snap: 30, turn: 'snap', fov: 70, sensitivity: 1 },
+  comfort: { speed: 3.2, snap: 30, turn: 'snap', fov: 70, sensitivity: 1, graphics: 'high', vignette: 'on' },
   audio: { volume: 70, voice: 100 },
 };
 
@@ -89,6 +91,8 @@ export function sanitizeLook(raw) {
     primary: color(r.primary, d.primary),
     secondary: color(r.secondary, d.secondary),
     accent: color(r.accent, d.accent),
+    skin: color(r.skin, d.skin),
+    hair: color(r.hair, d.hair),
   };
 }
 
@@ -122,6 +126,8 @@ export function loadPrefs(saved) {
       turn: inList(CATALOG.turn, c.turn, d.comfort.turn),
       fov: num(c.fov, 60, 100, d.comfort.fov),
       sensitivity: num(c.sensitivity, 0.5, 2, d.comfort.sensitivity),
+      graphics: inList(CATALOG.graphics, c.graphics, d.comfort.graphics),
+      vignette: inList(CATALOG.vignette, c.vignette, d.comfort.vignette),
     },
     audio: { volume: num(a.volume, 0, 100, d.audio.volume), voice: num(a.voice, 0, 100, d.audio.voice) },
   };

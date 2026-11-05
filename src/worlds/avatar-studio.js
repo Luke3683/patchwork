@@ -4,7 +4,7 @@ import { disposeTree } from '../engine/kit.js';
 import { Avatar } from '../engine/avatar.js';
 import { CATALOG, NAME_A, NAME_B } from '../engine/prefs.js';
 
-const ACCENT = '#ffb7d5';
+const ACCENT = '#27e0cc';
 const choice = (label, group, key, list = CATALOG[key]) => ({ kind: 'choice', label, group, key, list });
 const number = (label, group, key, min, max, step, format = (v) => String(v)) => ({ kind: 'number', label, group, key, min, max, step, format });
 const paint = (label, group, key) => ({ kind: 'color', label, group, key });
@@ -31,6 +31,8 @@ const TABS = {
     paint('Main color', 'look', 'primary'),
     paint('Second color', 'look', 'secondary'),
     paint('Glow color', 'look', 'accent'),
+    paint('Skin', 'look', 'skin'),
+    paint('Hair', 'look', 'hair'),
   ],
   Gear: [
     choice('Blaster', 'gear', 'blaster'),
@@ -53,6 +55,8 @@ const TABS = {
     number('Snap angle', 'comfort', 'snap', 15, 45, 15, (v) => `${v} degrees`),
     number('Desktop view', 'comfort', 'fov', 60, 100, 5, (v) => `${v} degrees`),
     number('Mouse speed', 'comfort', 'sensitivity', 0.5, 2, 0.1, (v) => `${Math.round(v * 100)}%`),
+    choice('Graphics', 'comfort', 'graphics'),
+    choice('VR tunnel view', 'comfort', 'vignette'),
     number('Game volume', 'audio', 'volume', 0, 100, 10, percent),
     number('Voice volume', 'audio', 'voice', 0, 100, 10, percent),
   ],
@@ -65,19 +69,19 @@ export default {
 
   create(k) {
     const { game, root, save } = k;
-    k.sky({ top: 0x2a1a3f, mid: 0x5b3b70, horizon: 0xe8a5c0, bottom: 0x24162f });
+    k.sky({ top: 0x0a2233, mid: 0x14505e, horizon: 0xff9e7a, bottom: 0x07161f });
     k.lights({ sky: 0xfff0f5, ground: 0x5b3b70, sun: 0xfff4e0, ambient: 1.9, direct: 1.8, dir: [0.2, 1, 0.8] });
-    k.fog(0x5b3b70, 14, 70);
+    k.fog(0x14505e, 14, 70);
 
     const floor = new THREE.Mesh(
       new THREE.CircleGeometry(9, 32).rotateX(-Math.PI / 2),
-      new THREE.MeshLambertMaterial({ color: 0x3d2a52 }),
+      new THREE.MeshLambertMaterial({ color: 0x10303c }),
     );
     root.add(floor);
 
     // The preview stands on a turntable, so you can see what's on your back too.
     const stage = new THREE.Vector3(1.75, 0, -2.5);
-    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.72, 0.72, 24), new THREE.MeshLambertMaterial({ color: 0xffb7d5 }));
+    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.72, 0.72, 24), new THREE.MeshLambertMaterial({ color: 0xff5c4d }));
     pedestal.position.copy(stage).setY(0.36);
     root.add(pedestal);
 
@@ -171,12 +175,12 @@ export default {
         swatch = `#${pref(row).toString(16).padStart(6, '0')}`;
       }
       label.paint((g, W, H) => {
-        g.fillStyle = picking === row ? '#3a2a5e' : '#18132e';
+        g.fillStyle = picking === row ? '#3a2a5e' : '#07161f';
         g.beginPath();
         g.roundRect(0, 0, W, H, 10);
         g.fill();
         g.textBaseline = 'middle';
-        g.fillStyle = '#b9b2cf';
+        g.fillStyle = '#a9c0c7';
         g.font = `${H * 0.32}px ${BODY}`;
         g.fillText(row.label, 14, H / 2, W * 0.45);
         g.fillStyle = priced ? '#ff8a4c' : '#f4efe2';
@@ -198,7 +202,7 @@ export default {
       if (row.kind === 'choice') {
         addButton('<', () => cycle(row, -1), 0.6, y, side);
         addButton('>', () => cycle(row, 1), 0.83, y, side);
-        if (priced) addButton(`Buy ${priced.cost}`, () => buy(row, priced), 1.28, y, { accent: '#ffd166', width: 0.62 });
+        if (priced) addButton(`Buy ${priced.cost}`, () => buy(row, priced), 1.28, y, { accent: '#ff5c4d', width: 0.62 });
       } else if (row.kind === 'number') {
         const change = (dir) => {
           const raw = pref(row) + dir * row.step;
@@ -268,11 +272,11 @@ export default {
 
       const coins = new Panel({ width: 1.1, height: 0.22, ppm: 340 });
       coins.paint((g, W, H) => {
-        g.fillStyle = '#18132e';
+        g.fillStyle = '#07161f';
         g.beginPath();
         g.roundRect(0, 0, W, H, 12);
         g.fill();
-        g.fillStyle = '#ffd166';
+        g.fillStyle = '#ff5c4d';
         g.font = `${H * 0.44}px ${DISPLAY}`;
         g.textBaseline = 'middle';
         g.fillText(`${save.coins} coins`, 16, H / 2);
@@ -288,7 +292,7 @@ export default {
           tab = name;
           picking = null;
           rebuild();
-        }, x, y, { accent: name === tab ? ACCENT : '#b9b2cf', width: 0.62 });
+        }, x, y, { accent: name === tab ? ACCENT : '#a9c0c7', width: 0.62 });
       });
       TABS[tab].forEach((row, i) => addRow(row, 2.04 - i * 0.235));
       picker.visible = !!picking;

@@ -73,6 +73,7 @@ export class Net {
     this.handlers = new Map();
     this.group = new THREE.Group();
     game.scene.add(this.group);
+    this.poseOverride = null; // a world with its own camera supplies the body pose
     this.poseTimer = 0;
     this.stateTimer = 0;
     this.micStream = null;
@@ -347,7 +348,7 @@ export class Net {
     if (this.transport) await Promise.resolve(this.transport.addStream(stream)).catch(() => {});
   }
 
-  /** The A or X button in VR, or M on desktop. */
+  /** The X button in VR, or M on desktop. */
   async toggleMic() {
     const { kit, isXR } = this.game;
     if (!this.inRoom) {
@@ -474,6 +475,7 @@ export class Net {
   }
 
   buildPose() {
+    if (this.poseOverride) return this.poseOverride();
     const { camera, input, isXR } = this.game;
     const out = [];
     const writeObj = (obj, active) => {

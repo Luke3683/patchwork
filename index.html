@@ -4,122 +4,163 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Patchwork</title>
-<meta name="description" content="An open source VR multiverse. One hub, many worlds, each one a single file anyone can add.">
+<meta name="description" content="An open source open-world game for VR and desktop. Drive, fly, steal, fight and explore a whole island with your friends.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bowlby+One&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap">
 <style>
-  /* Title card over the live hub: a sewn-on label in the corner of a moving scene. */
+  /* A film title over the live island: huge condensed type, one hot color, and a menu you read like a poster. */
   :root {
-    --ink: #18132e;
-    --cloth: #f4efe2;
-    --thread: #ffd166;
-    --ember: #ff8a4c;
-    --muted: #b9b2cf;
-    --display: "Bowlby One", Impact, "Arial Black", sans-serif;
-    --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+    --ink: #07161f;
+    --panel: rgb(7 22 31 / 0.86);
+    --sand: #fff4e3;
+    --coral: #ff5c4d;
+    --aqua: #27e0cc;
+    --gold: #ffc940;
+    --muted: #a9c0c7;
+    --display: "Anton", Impact, "Arial Narrow", sans-serif;
+    --body: "Barlow", "Segoe UI", system-ui, sans-serif;
     color-scheme: dark;
   }
-  html, body { height: 100%; margin: 0; background: var(--ink); color: var(--cloth); font-family: var(--body); overflow: hidden; }
+  html, body { height: 100%; margin: 0; background: var(--ink); color: var(--sand); font-family: var(--body); font-weight: 500; overflow: hidden; }
   #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 
-  #title {
-    position: fixed; left: 0; bottom: 0;
-    box-sizing: border-box; width: min(100%, 560px); max-height: 100%; overflow-y: auto;
-    padding-block: 24px max(24px, env(safe-area-inset-bottom, 0px));
-    padding-left: max(24px, env(safe-area-inset-left, 0px));
-    padding-right: max(24px, env(safe-area-inset-right, 0px));
+  #title { position: fixed; inset: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: flex-end; box-sizing: border-box;
+    padding-block: 28px max(30px, env(safe-area-inset-bottom, 0px));
+    padding-left: max(clamp(20px, 5vw, 76px), env(safe-area-inset-left, 0px));
+    padding-right: max(20px, env(safe-area-inset-right, 0px));
+    background:
+      linear-gradient(90deg, rgb(4 14 21 / 0.9) 0%, rgb(4 14 21 / 0.62) 30%, rgb(4 14 21 / 0) 60%),
+      linear-gradient(0deg, rgb(4 14 21 / 0.82) 0%, rgb(4 14 21 / 0) 42%);
   }
-  .label {
-    display: flex; flex-direction: column; gap: 16px;
-    background: var(--ink); padding: 24px; border-radius: 14px;
-    outline: 3px dashed var(--thread); outline-offset: -11px;
-  }
-  h1 {
-    margin: 0; font: 400 clamp(2.5rem, 11vw, 4.1rem)/0.95 var(--display); letter-spacing: 0.005em;
-    color: var(--thread); padding: 6px 8px 0;
-  }
-  .pitch { margin: 0; padding: 0 8px; font-size: 1.05rem; line-height: 1.45; text-wrap: pretty; }
-  .row { display: flex; flex-wrap: wrap; gap: 10px; padding: 0 8px; }
-  button {
-    font: 400 1rem var(--display); color: var(--ink); background: var(--thread);
-    border: 0; border-radius: 8px; padding: 12px 18px; cursor: pointer;
-  }
-  button.secondary { background: var(--cloth); }
-  button:hover { filter: brightness(1.1); }
-  button:focus-visible { outline: 3px solid var(--ember); outline-offset: 2px; }
-  #quilt-row { display: flex; gap: 6px; padding: 0 8px; }
-  .swatch { width: 44px; height: 44px; border-radius: 4px; outline: 2px dashed var(--cloth); outline-offset: -2px; }
-  .swatch.unearned { opacity: 0.28; }
-  .room { display: flex; flex-direction: column; gap: 8px; padding: 12px 8px 0; border-top: 1px solid rgb(244 239 226 / 0.2); }
-  .room h2 { margin: 0; font: 400 1rem var(--display); color: var(--cloth); }
-  .room .small { padding: 0; }
-  .row.tight { padding: 0; align-items: center; }
-  #room-code {
-    box-sizing: border-box; width: 8.5em; min-width: 0; padding: 11px 12px; border-radius: 8px; border: 2px solid var(--muted);
-    background: transparent; color: var(--cloth); font: 700 1rem var(--body); letter-spacing: 0.08em; text-transform: uppercase;
-  }
-  #room-code:focus-visible { outline: 3px solid var(--ember); outline-offset: 2px; }
-  #room-name { color: var(--thread); font-weight: 700; letter-spacing: 0.06em; }
-  button.quiet { font: 400 0.9rem var(--display); padding: 9px 12px; background: var(--cloth); }
-  .small { margin: 0; padding: 0 8px; color: var(--muted); font-size: 0.9rem; line-height: 1.4; }
-  .small-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-  #reset { font: 400 0.9rem var(--body); background: none; color: var(--muted); padding: 0; text-decoration: underline; border-radius: 2px; }
+  .stack { display: flex; flex-direction: column; gap: 18px; width: min(100%, 560px); min-width: 0; }
+  .eyebrow { margin: 0; color: var(--aqua); font-weight: 700; font-size: 0.86rem; letter-spacing: 0.24em; text-transform: uppercase; }
+  h1 { margin: 0; font: 400 clamp(4.2rem, 13vw, 9.4rem)/0.92 var(--display); letter-spacing: 0.012em; text-transform: uppercase; color: var(--sand); text-shadow: 0 6px 34px rgb(0 0 0 / 0.5); }
+  h1 em { font-style: normal; color: var(--coral); }
+  .pitch { margin: 0; max-width: 34em; font-size: 1.14rem; line-height: 1.42; text-wrap: pretty; color: #e4edeb; }
 
-  #legend, #crosshair { display: none; }
+  .menu { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+  .menu button, .menu summary {
+    display: inline-flex; align-items: center; gap: 12px; padding: 5px 0; background: none; border: 0; color: var(--sand); cursor: pointer; list-style: none;
+    font: 400 clamp(1.6rem, 3.6vw, 2.5rem)/1.1 var(--display); letter-spacing: 0.035em; text-transform: uppercase;
+    transition: transform 0.14s ease-out, color 0.14s;
+  }
+  .menu summary::-webkit-details-marker { display: none; }
+  .menu button::before, .menu summary::before { content: ""; width: 0; height: 0.62em; background: var(--coral); transition: width 0.14s ease-out; }
+  .menu button:hover, .menu summary:hover, .menu button:focus-visible, .menu summary:focus-visible { color: var(--coral); transform: translateX(4px); outline: none; }
+  .menu button:hover::before, .menu summary:hover::before, .menu button:focus-visible::before, .menu summary:focus-visible::before { width: 0.34em; }
+  .menu .primary { color: var(--coral); font-size: clamp(2.4rem, 5.6vw, 3.9rem); }
+  .menu .primary:hover, .menu .primary:focus-visible { color: var(--gold); }
+  @media (prefers-reduced-motion: reduce) { .menu button, .menu summary, .menu button::before, .menu summary::before { transition: none; } .menu button:hover, .menu summary:hover { transform: none; } }
+
+  details { width: 100%; }
+  .room { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; padding: 14px 16px; background: var(--panel); }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .row button {
+    font: 600 0.95rem var(--body); color: var(--ink); background: var(--sand); border: 0; padding: 10px 14px; cursor: pointer;
+  }
+  .row button:hover { background: var(--aqua); }
+  .row button:focus-visible { outline: 3px solid var(--aqua); outline-offset: 2px; }
+  #room-code { box-sizing: border-box; width: 8.5em; min-width: 0; padding: 10px 12px; border: 2px solid var(--muted); background: transparent; color: var(--sand); font: 700 1rem var(--body); letter-spacing: 0.1em; text-transform: uppercase; }
+  #room-code:focus-visible { outline: 3px solid var(--aqua); outline-offset: 2px; }
+  #room-name { color: var(--aqua); font-weight: 700; letter-spacing: 0.08em; }
+
+  .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+  #quilt-row { display: flex; gap: 4px; }
+  .swatch { width: 26px; height: 26px; }
+  .swatch.unearned { opacity: 0.22; filter: grayscale(1); }
+  .small { margin: 0; color: var(--muted); font-size: 0.92rem; line-height: 1.4; }
+  #reset { font: 500 0.9rem var(--body); background: none; border: 0; color: var(--muted); padding: 0; text-decoration: underline; cursor: pointer; }
+  #reset:focus-visible { outline: 2px solid var(--aqua); outline-offset: 2px; }
+
+  #hud { position: fixed; inset: 0; pointer-events: none; color: var(--sand); text-shadow: 0 1px 4px rgb(0 0 0 / 0.8); font-size: 0.96rem; font-weight: 600; }
+  .hud-stats { position: absolute; right: 22px; top: 18px; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+  .hud-coins { font: 400 2.1rem/1 var(--display); letter-spacing: 0.02em; color: #63f59a; font-variant-numeric: tabular-nums; }
+  .hud-level { display: flex; align-items: center; gap: 8px; font: 400 1.15rem var(--display); letter-spacing: 0.05em; color: var(--sand); }
+  .hud-level::before { content: "LV"; color: var(--aqua); }
+  .hud-bar { width: 170px; height: 6px; background: rgb(0 0 0 / 0.55); overflow: hidden; }
+  .hud-bar i { display: block; height: 100%; width: 0; background: var(--aqua); transition: width 0.2s; }
+  .hud-bar.thin { width: 200px; height: 6px; margin-top: 4px; }
+  #hud-boost { background: #4db4ff; }
+  #hud-fuel { background: var(--gold); }
+  .hud-health { width: 200px; height: 8px; }
+  #hud-health { background: #6dff8e; }
+  .hud-wanted { font-size: 1.5rem; line-height: 1; letter-spacing: 3px; color: rgb(255 244 227 / 0.26); }
+  .hud-wanted.hot { color: var(--gold); text-shadow: 0 0 12px rgb(255 92 77 / 0.95); }
+  .hud-goal { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; padding: 8px 22px; background: var(--panel); }
+  .hud-goal strong { font: 400 1.05rem var(--display); letter-spacing: 0.05em; text-transform: uppercase; color: var(--aqua); }
+  .hud-goal b { font: 400 1.9rem var(--display); font-variant-numeric: tabular-nums; }
+  .hud-goal.urgent b { color: var(--coral); }
+  .hud-banner { position: absolute; top: 20%; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding-inline: 16px; }
+  .hud-banner strong { font: 400 clamp(2.6rem, 7.5vw, 5.4rem)/1 var(--display); letter-spacing: 0.02em; text-transform: uppercase; color: var(--sand); text-shadow: 0 4px 22px rgb(0 0 0 / 0.8); }
+  .hud-banner span { font-size: 1.2rem; }
+  .hud-flashes { position: absolute; left: 22px; top: 18px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+  .hud-flash { display: flex; flex-direction: column; padding: 6px 14px; background: var(--panel); animation: hud-in 0.22s ease-out; }
+  .hud-flash span { color: var(--gold); }
+  @keyframes hud-in { from { transform: translateX(-14px); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .hud-flash { animation: none; } }
+  .hud-prompt { position: absolute; left: 50%; bottom: 22%; transform: translateX(-50%); padding: 8px 18px; background: var(--panel); color: var(--sand); white-space: nowrap; }
+  .hud-dash { position: absolute; left: 22px; bottom: 22px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+  .hud-speed b { font: 400 3.4rem/1 var(--display); font-variant-numeric: tabular-nums; }
+  .hud-speed small { margin-left: 5px; color: var(--aqua); }
+  #hud-map { width: min(190px, 25vh); height: min(190px, 25vh); border-radius: 50%; border: 3px solid rgb(255 244 227 / 0.9); box-shadow: 0 4px 22px rgb(0 0 0 / 0.55); }
+  .hud-legend { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); max-width: calc(100% - 32px); width: max-content; padding: 5px 14px; background: var(--panel); font-size: 0.84rem; font-weight: 500; text-align: center; transition: opacity 0.6s; }
+  .hud-legend.quiet { opacity: 0; }
+  [hidden] { display: none !important; }
+  #crosshair { display: none; }
   body.playing #title { display: none; }
-  body.playing #legend {
-    display: block; position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
-    width: max-content; max-width: calc(100% - 32px); box-sizing: border-box; text-align: center;
-    padding: 7px 14px; border-radius: 8px; background: rgb(24 19 46 / 0.78); font-size: 0.85rem; pointer-events: none;
-  }
   body.locked #crosshair {
-    display: block; position: fixed; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px;
-    border-radius: 50%; border: 2px solid var(--cloth); box-shadow: 0 0 0 1px var(--ink); pointer-events: none;
+    display: block; position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
+    border-radius: 50%; background: rgb(255 244 227 / 0.8); box-shadow: 0 0 0 1px rgb(0 0 0 / 0.5); pointer-events: none;
   }
-  body.locked.aiming #crosshair { background: var(--thread); transform: scale(1.5); }
+  body.locked.aiming #crosshair { background: var(--coral); transform: scale(1.6); }
   @media (prefers-reduced-motion: reduce) { body.locked.aiming #crosshair { transform: none; } }
 </style>
 <script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
 </script>
 </head>
 <body>
 <canvas id="scene"></canvas>
 
 <section id="title">
-  <div class="label">
-    <h1>Patchwork</h1>
-    <p class="pitch">A VR multiverse stitched together from many small worlds. Race, shoot, build, solve and keep the beat, then add a world of your own.</p>
-    <div class="row">
+  <div class="stack">
+    <p class="eyebrow">Open world · VR and desktop · Open source</p>
+    <h1>Patch<em>work</em></h1>
+    <p class="pitch">A whole city and island to take over. Steal cars, rob stores, fight rival crews, outrun the police and fly anything with wings, alone or with your friends.</p>
+    <nav class="menu" aria-label="Main menu">
+      <button id="play-desktop" class="primary">Play</button>
       <button id="enter-vr" hidden>Enter VR</button>
-      <button id="play-desktop" class="secondary">Play on desktop</button>
-    </div>
-    <div class="room">
-      <h2>Play with friends</h2>
-      <div class="row tight" id="room-setup">
-        <button id="room-create" class="quiet">Create a room</button>
-        <input id="room-code" maxlength="6" placeholder="Room code" autocomplete="off" spellcheck="false" aria-label="Room code">
-        <button id="room-join" class="quiet">Join</button>
-      </div>
-      <div class="row tight" id="room-live" hidden>
-        <span>Room <span id="room-name"></span></span>
-        <button id="room-copy" class="quiet">Copy invite link</button>
-        <button id="room-mic" class="quiet">Turn on mic</button>
-        <button id="room-leave" class="quiet">Leave</button>
-      </div>
-      <p class="small" id="room-status">Share a room code only with people you trust. Players connect directly, so people in your room can see your IP address.</p>
-    </div>
-    <div id="quilt-row" aria-hidden="true"></div>
-    <div class="small small-row">
-      <span id="quilt-count"></span>
+      <details id="friends">
+        <summary>Play with friends</summary>
+        <div class="room">
+          <div class="row" id="room-setup">
+            <button id="room-create">Create a room</button>
+            <input id="room-code" maxlength="6" placeholder="Room code" autocomplete="off" spellcheck="false" aria-label="Room code">
+            <button id="room-join">Join</button>
+          </div>
+          <div class="row" id="room-live" hidden>
+            <span>Room <span id="room-name"></span></span>
+            <button id="room-copy">Copy invite link</button>
+            <button id="room-mic">Turn on mic</button>
+            <button id="room-leave">Leave</button>
+          </div>
+          <p class="small" id="room-status">Share a room code only with people you trust. Players connect directly, so people in your room can see your IP address.</p>
+        </div>
+      </details>
+    </nav>
+    <div class="meta">
+      <div id="quilt-row" aria-hidden="true"></div>
+      <span class="small" id="quilt-count"></span>
       <button id="reset" hidden>Reset progress</button>
     </div>
-    <p class="small" id="vr-note">Loading the Crossroads…</p>
+    <p class="small" id="vr-note">Loading…</p>
   </div>
 </section>
 
-<div id="legend">WASD move · Mouse look · Click use · H back to the hub · M mic · Esc free the mouse</div>
 <div id="crosshair"></div>
 
 <script type="module" src="src/main.js"></script>
