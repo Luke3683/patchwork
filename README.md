@@ -2,6 +2,8 @@
 
 An open source VR multiverse. One hub, many small worlds, and a little bit of everything.
 
+**[Play it now](https://luke3683.github.io/patchwork/)** in your headset's browser or on a desktop. There's nothing to install.
+
 You start at the Crossroads, a floating plaza ringed with portals. Each portal leads to a world in a different genre. Clear a world and its patch is stitched into the giant quilt hanging over the plaza. Finish the quilt and the Source Gate opens.
 
 Every world is a single JavaScript file, so adding one is a small pull request. That is the whole idea: the multiverse grows because people add to it.
