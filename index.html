@@ -25,7 +25,7 @@
   html, body { height: 100%; margin: 0; background: var(--ink); color: var(--sand); font-family: var(--body); font-weight: 500; overflow: hidden; }
   #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 
-  #title { position: fixed; inset: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: flex-end; box-sizing: border-box;
+  #title { position: fixed; inset: 0; overflow-y: auto; display: flex; flex-direction: column; box-sizing: border-box;
     padding-block: 28px max(30px, env(safe-area-inset-bottom, 0px));
     padding-left: max(clamp(20px, 5vw, 76px), env(safe-area-inset-left, 0px));
     padding-right: max(20px, env(safe-area-inset-right, 0px));
@@ -33,7 +33,8 @@
       linear-gradient(90deg, rgb(4 14 21 / 0.9) 0%, rgb(4 14 21 / 0.62) 30%, rgb(4 14 21 / 0) 60%),
       linear-gradient(0deg, rgb(4 14 21 / 0.82) 0%, rgb(4 14 21 / 0) 42%);
   }
-  .stack { display: flex; flex-direction: column; gap: 18px; width: min(100%, 560px); min-width: 0; }
+  /* The margin sits the menu at the bottom, and unlike bottom alignment it can still scroll on a short window. */
+  .stack { display: flex; flex-direction: column; gap: 18px; width: min(100%, 560px); min-width: 0; margin-top: auto; }
   .eyebrow { margin: 0; color: var(--aqua); font-weight: 700; font-size: 0.86rem; letter-spacing: 0.24em; text-transform: uppercase; }
   h1 { margin: 0; font: 400 clamp(4.2rem, 13vw, 9.4rem)/0.92 var(--display); letter-spacing: 0.012em; text-transform: uppercase; color: var(--sand); text-shadow: 0 6px 34px rgb(0 0 0 / 0.5); }
   h1 em { font-style: normal; color: var(--coral); }
@@ -52,6 +53,16 @@
   .menu .primary { color: var(--coral); font-size: clamp(2.4rem, 5.6vw, 3.9rem); }
   .menu .primary:hover, .menu .primary:focus-visible { color: var(--gold); }
   @media (prefers-reduced-motion: reduce) { .menu button, .menu summary, .menu button::before, .menu summary::before { transition: none; } .menu button:hover, .menu summary:hover { transform: none; } }
+  /* Short windows keep the name and the Play button, and drop the rest. */
+  @media (max-height: 680px) {
+    #title { padding-block: 14px; }
+    .stack { gap: 8px; }
+    .eyebrow, .pitch { display: none; }
+    h1 { font-size: clamp(2.4rem, 16vh, 5rem); }
+    .menu .primary { font-size: clamp(1.8rem, 11vh, 3rem); }
+    .menu button, .menu summary { font-size: clamp(1.1rem, 7vh, 1.8rem); padding: 2px 0; }
+  }
+  @media (max-height: 420px) { .meta, #vr-note { display: none; } }
 
   details { width: 100%; }
   .room { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; padding: 14px 16px; background: var(--panel); }

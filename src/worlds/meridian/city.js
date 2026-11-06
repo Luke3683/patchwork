@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { buildPrefabs, buildProps, prefabsReady, prefabSize, PREFAB_BUILDINGS } from './prefabs.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { AIRPORT, RUNWAY, PADS, CITY_HEIGHT, CITY_RADIUS } from './terrain.js';
 import { tex, surface } from './textures.js';
@@ -102,12 +103,15 @@ export class Solids {
 }
 
 const FACADES = [
-  { id: 'glassBlue', curtain: true, base: '#4d7fa8', seed: 11 },
-  { id: 'glassTeal', curtain: true, base: '#2e9d9a', seed: 22 },
-  { id: 'plaster', photo: 'plaster', cols: 3, seed: 33 },
-  { id: 'brick', photo: 'brick', cols: 3, seed: 44 },
-  { id: 'concrete', photo: 'concrete', cols: 4, seed: 55 },
+  { id: 'office', image: 'office', tile: 26, floors: true, roughness: 0.32, metalness: 0.55 },
+  { id: 'tower', image: 'tower', tile: 34, roughness: 0.22, metalness: 0.7 },
+  { id: 'teal', image: 'teal', tile: 30, roughness: 0.25, metalness: 0.65 },
+  { id: 'brickA', image: 'brickA', tile: 13, roughness: 0.82, metalness: 0.05 },
+  { id: 'brickB', image: 'brickB', tile: 13, roughness: 0.82, metalness: 0.05 },
+  { id: 'stone', image: 'stone', tile: 13, roughness: 0.7, metalness: 0.1 },
 ];
+const TOWER_STYLES = [0, 1, 2];
+const BLOCK_STYLES = [3, 4, 5];
 
 /** Paints a facade from a real wall photo, with framed windows that reflect the sky. */
 function facadeTextures(style, high) {
@@ -149,9 +153,9 @@ function facadeTextures(style, high) {
       const w = bw * 0.9;
       const h = S * 0.62;
       const lit = g.createLinearGradient(0, top, 0, top + h);
-      lit.addColorStop(0, '#d9c9a8');
-      lit.addColorStop(0.55, '#8d7e68');
-      lit.addColorStop(1, '#3a342c');
+      lit.addColorStop(0, '#8a7c66');
+      lit.addColorStop(0.5, '#4a4238');
+      lit.addColorStop(1, '#1d1a16');
       g.fillStyle = lit;
       g.fillRect(left, top, w, h);
       // Goods on shelves, seen through the glass.
@@ -163,11 +167,19 @@ function facadeTextures(style, high) {
         for (let px = left + 10; px < left + w - 22;) {
           const pw = 10 + rand() * 16;
           const ph = h * (0.07 + rand() * 0.07);
-          g.fillStyle = `hsl(${rand() * 360},${18 + rand() * 26}%,${34 + rand() * 30}%)`;
+          g.fillStyle = `hsl(${rand() * 360},${6 + rand() * 18}%,${18 + rand() * 24}%)`;
           g.fillRect(px, sy + h * 0.13 - ph, pw, ph);
           px += pw + 3;
         }
       }
+      // The sky reflected across the glass.
+      const shine = g.createLinearGradient(left, top, left + w, top + h);
+      shine.addColorStop(0, 'rgba(190,215,235,0.34)');
+      shine.addColorStop(0.45, 'rgba(190,215,235,0.05)');
+      shine.addColorStop(0.62, 'rgba(190,215,235,0.2)');
+      shine.addColorStop(1, 'rgba(190,215,235,0.02)');
+      g.fillStyle = shine;
+      g.fillRect(left, top, w, h);
       g.fillStyle = '#23262b';
       g.fillRect(left - 5, top - 5, w + 10, 7);
       g.fillRect(left - 5, top + h, w + 10, 9);
@@ -278,7 +290,8 @@ class FacadeBatch {
     const c = new THREE.Color(tint);
     const y0 = baseY;
     const y1 = baseY + height;
-    const v = vScale ?? height / (FLOOR * 4);
+    const tile = this.style.tile;
+    const v = vScale ?? (tile ? height / tile : height / (FLOOR * 4));
     let along = 0;
     const count = points.length;
     const normalAt = (i) => {
@@ -291,7 +304,8 @@ class FacadeBatch {
       const a = points[i];
       const b = points[(i + 1) % count];
       const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      const u = smooth ? along + len / 10 : Math.round(len / 10) || 1;
+      const across = tile ?? 10;
+      const u = smooth ? along + len / across : Math.round(len / across) || 1;
       const u0 = smooth ? along : 0;
       const n = normalAt(i);
       const na = smooth ? normalAt((i - 1 + count) % count).map((x, k) => (x + n[k]) / 2) : n;
@@ -331,11 +345,21 @@ class FacadeBatch {
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
     geo.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(this.nor, 3));
-    const { map, orm, emissiveMap } = facadeTextures(this.style, this.high);
-    const common = { map, emissiveMap, emissive: 0xffffff, emissiveIntensity: 0, vertexColors: true };
-    const mat = this.high
-      ? new THREE.MeshStandardMaterial({ ...common, roughnessMap: orm, metalnessMap: orm, roughness: 1, metalness: 1 })
-      : new THREE.MeshLambertMaterial(common);
+    let mat;
+    if (this.style.image) {
+      const common = {
+        map: tex(`facade_${this.style.image}`), emissiveMap: tex(`facade_${this.style.image}`, 'glow'), emissive: 0xffffff, emissiveIntensity: 0, vertexColors: true,
+      };
+      mat = this.high
+        ? new THREE.MeshStandardMaterial({ ...common, roughness: this.style.roughness, metalness: this.style.metalness })
+        : new THREE.MeshLambertMaterial(common);
+    } else {
+      const { map, orm, emissiveMap } = facadeTextures(this.style, this.high);
+      const common = { map, emissiveMap, emissive: 0xffffff, emissiveIntensity: 0, vertexColors: true };
+      mat = this.high
+        ? new THREE.MeshStandardMaterial({ ...common, roughnessMap: orm, metalnessMap: orm, roughness: 1, metalness: 1 })
+        : new THREE.MeshLambertMaterial(common);
+    }
     const mesh = new THREE.Mesh(geo, mat);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -424,7 +448,6 @@ export function buildCity(k, terrain, solids) {
   const batches = FACADES.map((s) => new FacadeBatch(s, high));
   const shopBatch = new FacadeBatch({ shop: true, seed: 66 }, high);
   // Soft pastels and warm whites, the colors of a sunny seaside city.
-  const pastels = [0xffffff, 0xffb4a4, 0x8fe8de, 0xfff0d8, 0xa8d0ff, 0xffb0d0, 0xffffff, 0xffd0a8];
   const neutral = [0xffffff, 0xece6dc, 0xd9dde4];
 
   const storefronts = [];
@@ -434,6 +457,8 @@ export function buildCity(k, terrain, solids) {
   const signSpots = [];
   const rooftops = [];
   const storeSpots = [];
+  const prefabSpots = [];
+  const useModels = high && prefabsReady();
   const y0 = CITY_HEIGHT;
 
   for (let bx = -5; bx <= 5; bx++) {
@@ -465,12 +490,43 @@ export function buildCity(k, terrain, solids) {
         for (const sx of [-1, 1]) for (const sz of [-1, 1]) placed.push([cx + (sx * inner) / 2, cz + (sz * inner) / 2, size, size]);
       }
       for (const [x, z, w, d] of placed) {
+        // Low-rise lots near the middle of town are fully modeled, facing their street.
+        if (useModels && Math.min(w, d) < 40 && r > 60 && r < 640 && rand() < 0.75) {
+          const name = PREFAB_BUILDINGS[Math.floor(rand() * PREFAB_BUILDINGS.length)];
+          const size = prefabSize(name);
+          const facingX = rand() < 0.5;
+          const outX = x >= cx ? 1 : -1;
+          const outZ = z >= cz ? 1 : -1;
+          const yaw = facingX ? (outX > 0 ? Math.PI / 2 : -Math.PI / 2) : (outZ > 0 ? 0 : Math.PI);
+          const across = facingX ? d : w;
+          const deep = facingX ? w : d;
+          // As many side by side as suit the width of the lot, making a proper row of buildings.
+          const count = Math.max(1, Math.round(across / (size.x * 1.35)));
+          const scale = Math.min(across / (count * size.x), (deep * 0.95) / size.z);
+          const height = size.y * scale;
+          const reach = (size.z * scale) / 2;
+          for (let n = 0; n < count; n++) {
+            const along = ((n + 0.5) / count - 0.5) * across;
+            const bx = facingX ? x + outX * (w / 2 - reach) : x + along;
+            const bz = facingX ? z + along : z + outZ * (d / 2 - reach);
+            prefabSpots.push({ prefab: name, x: bx, y: y0 + 0.2, z: bz, yaw, scale });
+            // A plain block just inside the walls casts the shadow and is what you see from afar.
+            const bw = (facingX ? size.z : size.x) * scale - 1.4;
+            const bd = (facingX ? size.x : size.z) * scale - 1.4;
+            const stand = batches[BLOCK_STYLES[n % BLOCK_STYLES.length]];
+            stand.prism(chamfered(bx, bz, bw, bd, 0.2), y0 + 0.2, height - 1.5, 0xffffff);
+            solids.add(bx - bw / 2 - 0.5, bx + bw / 2 + 0.5, bz - bd / 2 - 0.5, bz + bd / 2 + 0.5, y0 + height);
+            rooftops.push([bx, y0 + height - 1.3, bz]);
+          }
+          continue;
+        }
         const floors = Math.round(4 + rand() * 7 + downtown * downtown * (20 + rand() * 46));
         const height = floors * FLOOR;
         const tall = height > 62;
-        const pick = tall ? (rand() < 0.75 ? 0 : 1) : 2 + Math.floor(rand() * 3);
+        const styles = tall ? TOWER_STYLES : BLOCK_STYLES;
+        const pick = styles[Math.floor(rand() * styles.length)];
         const batch = batches[pick];
-        const tint = FACADES[pick].photo === 'plaster' ? pastels[Math.floor(rand() * pastels.length)] : neutral[Math.floor(rand() * neutral.length)];
+        const tint = neutral[Math.floor(rand() * neutral.length)];
         const base = y0 + 3.8;
         const round = tall && rand() < 0.22;
 
@@ -500,7 +556,7 @@ export function buildCity(k, terrain, solids) {
           solids.add(x - w / 2, x + w / 2, z - d / 2, z + d / 2, base + height);
           rooftops.push([x, base + height, z]);
           // A cornice and a raised parapet finish the top of older buildings.
-          if (pick >= 2) storefronts.push(paint(new THREE.BoxGeometry(w + 0.7, 0.55, d + 0.7).translate(x, base + height, z), 0xdcd6c8));
+          if (!tall) storefronts.push(paint(new THREE.BoxGeometry(w + 0.7, 0.55, d + 0.7).translate(x, base + height, z), 0xdcd6c8));
         }
         if (height > 22) {
           const side = Math.floor(rand() * 4);
@@ -637,7 +693,7 @@ export function buildCity(k, terrain, solids) {
   const glowGeo = new THREE.BufferGeometry();
   glowGeo.setAttribute('position', new THREE.BufferAttribute(glowPos, 3));
   const lampGlow = new THREE.Points(glowGeo, new THREE.PointsMaterial({
-    map: glowTex, size: 4.5, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+    map: glowTex, size: 2.4, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
   }));
   lampGlow.frustumCulled = false;
   root.add(lampGlow);
@@ -680,15 +736,37 @@ export function buildCity(k, terrain, solids) {
 
   buildSpire(k, solids, y0);
   const landmarks = buildLandmarks(k, terrain, solids);
+  const prefabs = buildPrefabs(root, prefabSpots);
+  if (useModels) {
+    const furniture = { Prop_Bollard: [], Prop_Planter_Single: [], Prop_ManholeCover: [] };
+    for (const [cx, cz] of sidewalks) {
+      for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        for (const off of [2.2, 3.4, 4.6]) {
+          furniture.Prop_Bollard.push({ x: cx + sx * (BLOCK_HALF - off), y: y0 + 0.26, z: cz + sz * (BLOCK_HALF - 0.8) });
+          furniture.Prop_Bollard.push({ x: cx + sx * (BLOCK_HALF - 0.8), y: y0 + 0.26, z: cz + sz * (BLOCK_HALF - off) });
+        }
+      }
+      if (rand() < 0.5) {
+        const px = cx + (rand() < 0.5 ? -1 : 1) * (BLOCK_HALF - 1.3);
+        const pz = cz + (rand() - 0.5) * 30;
+        furniture.Prop_Planter_Single.push({ x: px, y: y0 + 0.26, z: pz });
+        solids.add(px - 1, px + 1, pz - 1, pz + 1, y0 + 0.9, y0);
+      }
+      furniture.Prop_ManholeCover.push({ x: cx + BLOCK_HALF + 5, y: y0 + 0.24, z: cz + (rand() - 0.5) * 40, scale: 1.3 });
+    }
+    buildProps(root, furniture);
+  }
   return {
     update(dusk, t) {
       const glow = dusk;
-      for (const m of windowMats) m.emissiveIntensity = glow * 0.6;
+      for (const m of windowMats) m.emissiveIntensity = glow * 0.42;
+      prefabs.setNight(glow);
       lampGlow.material.opacity = glow;
       pool.material.opacity = glow * 0.32;
       shopMesh.material.emissiveIntensity = glow * 1.5;
       landmarks.update(t, glow);
     },
+    prefabs,
     rooftops,
     parks,
     sidewalks,
@@ -711,16 +789,22 @@ function setStreetUv(geo, length, across) {
 /** Only the painted lines. It sits on top of the asphalt photo. */
 export function roadTexture(city) {
   const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 256;
+  canvas.width = 512;
+  canvas.height = 1024;
   const g = canvas.getContext('2d');
   if (!city) {
     g.fillStyle = '#e8e4d4';
-    g.fillRect(4, 0, 2, 256);
-    g.fillRect(122, 0, 2, 256);
+    g.fillRect(16, 0, 7, 1024);
+    g.fillRect(489, 0, 7, 1024);
+    g.fillStyle = '#e9c23a';
+    g.fillRect(248, 160, 7, 360);
+  } else {
+    // A dashed center line, and a solid line along each curb.
+    g.fillStyle = '#d9d4c4';
+    g.fillRect(252, 160, 8, 360);
+    g.fillRect(30, 0, 6, 1024);
+    g.fillRect(476, 0, 6, 1024);
   }
-  g.fillStyle = city ? '#d9d4c4' : '#e9c23a';
-  g.fillRect(63, 40, 2, 90);
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   texture.colorSpace = THREE.SRGBColorSpace;

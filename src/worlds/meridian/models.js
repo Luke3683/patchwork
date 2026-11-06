@@ -131,8 +131,8 @@ function wheel(r, w, high) {
 }
 
 /** Sedans, sports cars and SUVs share one recipe with different proportions. */
-function carBody({ L = 2.28, W = 0.94, hood = 0.86, deck = 0.92, floor = 0.3, roof = 1.42, cabinFront = -0.72, cabinBack = 1.2, tail = 0.9, low = false }) {
-  const q = low ? { sides: 10, smooth: 1 } : null;
+function carBody({ L = 2.28, W = 0.94, hood = 0.86, deck = 0.92, floor = 0.3, roof = 1.42, cabinFront = -0.72, cabinBack = 1.2, tail = 0.9, low = false, traffic = false }) {
+  const q = low ? { sides: 10, smooth: 1 } : traffic ? { sides: 16, smooth: 2 } : null;
   return {
     body: loft([
       { z: -L, w: W * 0.62, top: hood * 0.72, bot: floor + 0.14, e: 0.38 },

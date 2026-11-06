@@ -11,3 +11,5 @@ All textures are CC0 (public domain) from [Poly Haven](https://polyhaven.com).
 - plaster: "Painted Plaster Wall" by Amal Kumar (https://polyhaven.com/a/painted_plaster_wall)
 - brick: "Brick Wall 001" by Rob Tuytel, Dimitrios Savva (https://polyhaven.com/a/brick_wall_001)
 - concrete: "Concrete Floor 02" by Rob Tuytel (https://polyhaven.com/a/concrete_floor_02)
+
+The facade photos (`facade_*`) are Facades 001, 004, 005, 006, 008, 009, 018, 019 and 020 from [ambientCG](https://ambientcg.com), CC0.

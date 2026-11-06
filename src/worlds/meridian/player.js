@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { Avatar } from '../../engine/avatar.js';
+import { OUTFITS } from './crowd.js';
+import { Radio } from './radio.js';
 
 const GRAVITY = 19;
 const EYE = 1.6;
@@ -32,7 +34,13 @@ export class Player {
     this.avatar = new Avatar(this.k.prefs.look);
     this.k.root.add(this.avatar.group);
     this.avatar.setName('');
+    const look = this.k.prefs.look;
+    this.hero = {
+      x: 0, y: 0, z: 0, yaw: 0, skin: look.skin, hair: look.hair, shirt: look.primary, pants: look.secondary, outfit: OUTFITS.includes(world.progress.data.outfit) ? world.progress.data.outfit : 'casual', action: 'Idle', rate: 1, opts: {}, visible: false,
+    };
+    this.world.people.hero = this.hero;
     this.vehicleEngine = null;
+    this.radio = new Radio(this.k.sound);
     this.wind = null;
     this.vignette = new THREE.Mesh(
       new THREE.RingGeometry(0.2, 1.4, 40),
@@ -52,6 +60,7 @@ export class Player {
       this.k.game.net.poseOverride = null;
       this.vehicleEngine?.stop();
       this.wind?.stop();
+      this.radio.stop();
     });
   }
 
@@ -125,6 +134,11 @@ export class Player {
       }
     }
     if (!this.xr && this.k.input.keyPressed('KeyV')) this.firstPerson = !this.firstPerson;
+    if (this.vehicle && !w.paused && this.k.input.keyPressed('KeyR')) {
+      const now = this.radio.next();
+      w.hud.flash(now.name, now.tag);
+    }
+    this.radio.update();
     this.placeCamera(dt);
     this.updateVignette(dt);
     this.updateAvatar(dt);
@@ -272,11 +286,14 @@ export class Player {
     this.k.input.lasers = false;
     this.k.sound.play('select');
     if (v.def.cls === 'plane') {
-      v.throttle = 0.35;
-      v.flightSpeed = 0;
+      v.throttle = 0;
+      v.flightSpeed = v.flightSpeed ?? 0;
+      if (!this.xr) this.world.hud.banner('Hold W', 'Build speed, then point the mouse up to climb. Point where you want to go.');
     }
     this.vehicleEngine?.stop();
     this.vehicleEngine = this.k.sound.engine();
+    this.radio.start();
+    if (!this.radio.off) this.world.hud.flash(this.radio.station.name, `${this.radio.station.tag}. Press R to change station.`);
     this.world.onEnterVehicle(v);
     this.k.rig.rotation.y = v.yaw;
   }
@@ -288,6 +305,7 @@ export class Player {
     this.vehicle = null;
     this.vehicleEngine?.stop();
     this.vehicleEngine = null;
+    this.radio.stop();
     this.k.input.lasers = true;
     this.k.sound.play('select');
     // Step out on the driver's side, on whatever is there.
@@ -310,18 +328,35 @@ export class Player {
     const xr = this.xr;
     const c = {};
     if (cls === 'land' || cls === 'boat') {
-      c.steer = axes.moveX;
+      // Keys are all or nothing, so ease into the turn the way a steering wheel would.
+      const rate = axes.moveX === 0 ? 11 : 6.5;
+      this.steerIn = THREE.MathUtils.damp(this.steerIn ?? 0, axes.moveX, xr ? 40 : rate, this.frameDt);
+      c.steer = this.steerIn;
       c.gas = xr ? axes.triggerR : Math.max(0, axes.moveY);
       c.brake = xr ? axes.triggerL : Math.max(0, -axes.moveY);
       c.handbrake = xr ? input.buttonsHeld.a : keys.has('Space');
       c.boost = xr ? axes.gripR > 0.5 : keys.has('ShiftLeft') || keys.has('ShiftRight');
-    } else if (cls === 'plane') {
+    } else if (cls === 'plane' && xr) {
       c.pitch = -axes.moveY; // pull back to climb
       c.roll = axes.moveX;
-      const up = xr ? axes.triggerR : keys.has('ShiftLeft') || keys.has('ShiftRight') ? 1 : 0;
-      const down = xr ? axes.triggerL : keys.has('KeyZ') ? 1 : 0;
+      c.throttle = axes.triggerR - axes.triggerL;
+      c.brake = input.buttonsHeld.a ? 1 : 0;
+    } else if (cls === 'plane') {
+      // On a computer you just point where you want to go. The keys can nudge the aim too.
+      const v = this.vehicle;
+      const up = keys.has('KeyW') || keys.has('ShiftLeft') || keys.has('ShiftRight') ? 1 : 0;
+      const down = keys.has('KeyS') || keys.has('KeyZ') ? 1 : 0;
       c.throttle = up - down;
-      c.brake = xr ? (input.buttonsHeld.a ? 1 : 0) : keys.has('Space') ? 1 : 0;
+      c.brake = keys.has('Space') || (down && v.grounded) ? 1 : 0;
+      const turn = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
+      const lift = (keys.has('ArrowUp') ? 1 : 0) - (keys.has('ArrowDown') ? 1 : 0);
+      this.k.rig.rotation.y -= turn * 1.1 * this.frameDt;
+      input.pitch = THREE.MathUtils.clamp(input.pitch + lift * 0.7 * this.frameDt, -1, 0.9);
+      const aimPitch = input.pitch + 0.14;
+      const yawError = ((this.k.rig.rotation.y - v.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      c.aim = { pitch: aimPitch, roll: -yawError * 1.5 };
+      c.pitch = aimPitch > 0.03 ? 1 : 0; // lifts the nose once there's takeoff speed
+      c.roll = THREE.MathUtils.clamp(-yawError * 1.5, -1, 1);
     } else {
       c.pitch = axes.moveY;
       c.yaw = axes.moveX;
@@ -334,6 +369,7 @@ export class Player {
   }
 
   driveVehicle(dt) {
+    this.frameDt = dt;
     const v = this.vehicle;
     v.update(dt, this.world.paused ? null : this.controls());
     this.pos.copy(v.pos);
@@ -364,11 +400,11 @@ export class Player {
       return;
     }
     // After a moment without touching the mouse, the camera swings back behind the vehicle.
-    const idle = performance.now() - input.lastLook > 1400;
-    if (v && idle && v.speed > 2) {
+    const idle = performance.now() - input.lastLook > 800;
+    if (v && idle && v.speed > 2 && v.def.cls !== 'plane') {
       const diff = ((v.yaw - rig.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
       rig.rotation.y += diff * (1 - Math.exp(-2.8 * dt));
-      const wantPitch = -0.14 + (v.def.cls === 'plane' ? v.pitch * 0.55 : 0);
+      const wantPitch = -0.14;
       input.pitch += (wantPitch - input.pitch) * (1 - Math.exp(-2.5 * dt));
     }
     const yaw = rig.rotation.y;
@@ -406,8 +442,9 @@ export class Player {
     const shakeX = this.shake ? (Math.random() - 0.5) * this.shake * 0.5 : 0;
     const shakeY = this.shake ? (Math.random() - 0.5) * this.shake * 0.5 : 0;
     const camX = cx0 - v1.x * dist + shakeX;
-    const camY = targetY - v1.y * dist + shakeY;
     const camZ = cz0 - v1.z * dist;
+    // Never below the ground, however steep the hill behind you.
+    const camY = Math.max(targetY - v1.y * dist + shakeY, this.world.terrain.height(cx0 - v1.x * dist, camZ) + 0.7);
     rig.position.set(camX, camY - camera.position.y, camZ);
 
     // A wider view at speed makes going fast feel fast.
@@ -422,7 +459,8 @@ export class Player {
     const av = this.avatar;
     const v = this.vehicle;
     const hideSelf = this.xr || (this.firstPerson && !v);
-    av.group.visible = !hideSelf;
+    this.updateHero(hideSelf);
+    av.group.visible = false;
     const t = av.target;
     if (v) {
       const s = v.model.seat;
@@ -461,6 +499,44 @@ export class Player {
     t.showLeft = true;
     t.showRight = true;
     av.update(dt, null);
+  }
+
+  /** Your own body on foot, with the same animations as everyone else in the city. */
+  updateHero(hideSelf) {
+    const h = this.hero;
+    h.visible = !hideSelf && !this.vehicle && this.world.people.crowd.ready;
+    if (!h.visible) return;
+    const look = this.k.prefs.look;
+    h.skin = look.skin;
+    h.hair = look.hair;
+    h.shirt = look.primary;
+    h.pants = look.secondary;
+    h.x = this.pos.x;
+    h.y = this.pos.y;
+    h.z = this.pos.z;
+    h.yaw = this.bodyYaw;
+    const speed = Math.hypot(this.vel.x, this.vel.z);
+    const crime = this.world.crime;
+    h.opts = { dip: this.swimming ? 1.2 : 0 };
+    if (crime?.punching) {
+      h.action = crime.punchSide ? 'Punch_Left' : 'Punch_Right';
+      h.rate = 1.6;
+    } else if (this.swimming) {
+      h.action = 'Walk';
+      h.rate = 0.6 + speed * 0.2;
+    } else if (!this.grounded) {
+      h.action = 'Run';
+      h.rate = 0.35;
+    } else if (speed > 3.2) {
+      h.action = 'Run';
+      h.rate = speed / 4.6;
+    } else if (speed > 0.25) {
+      h.action = 'Walk';
+      h.rate = speed / 1.5;
+    } else {
+      h.action = 'Idle';
+      h.rate = 1;
+    }
   }
 
   updateSound() {

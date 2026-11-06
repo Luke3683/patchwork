@@ -17,6 +17,7 @@ export async function run() {
   G.clock.getDelta = () => DT;
   G.save.reset();
   G.input.lockFailed = true;
+  G.input.lastLook = performance.now() + 1e9;
 
   const settle = async () => {
     for (let i = 0; i < 400 && G.busy; i++) {
@@ -171,22 +172,19 @@ export async function run() {
   step(9);
   notes.planeRollSpeed = +planeV.flightSpeed.toFixed(1);
   notes.planeRollX = +planeV.pos.x.toFixed(0);
-  G.input.keys.add('KeyS');
+  G.rig.rotation.y = planeV.yaw;
+  G.input.pitch = 0.3;
   step(5);
-  G.input.keys.delete('KeyS');
   notes.planeAfterPull = { y: +planeV.pos.y.toFixed(1), speed: +planeV.flightSpeed.toFixed(1), pitch: +planeV.pitch.toFixed(2) };
   r['the plane takes off'] = planeV.pos.y > 16 && P.vehicle === planeV;
   const climbY = planeV.pos.y;
-  G.input.keys.add('KeyS');
   step(4);
-  G.input.keys.delete('KeyS');
   r['the plane climbs'] = planeV.pos.y > climbY + 15;
+  G.input.pitch = -0.1;
   const headingBefore = planeV.yaw;
-  G.input.keys.add('KeyD');
-  step(1.2);
-  G.input.keys.delete('KeyD');
-  step(2.5);
-  r['the plane banks and turns'] = Math.abs(planeV.yaw - headingBefore) > 0.15;
+  G.rig.rotation.y = planeV.yaw - 1.2; // point the camera off to the right
+  step(3.5);
+  r['the plane turns toward where you point'] = Math.abs(planeV.yaw - headingBefore) > 0.25;
   notes.plane = { y: +planeV.pos.y.toFixed(1), speed: +planeV.flightSpeed.toFixed(1), roll: +planeV.roll.toFixed(2) };
   release();
 
@@ -197,6 +195,8 @@ export async function run() {
   planeV.roll = 0;
   planeV.flightSpeed = 60;
   planeV.throttle = 1;
+  G.rig.rotation.y = 0;
+  G.input.pitch = -0.14;
   hold('ShiftLeft');
   step(20);
   release();

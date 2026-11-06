@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 const NAMES = ['asphalt', 'grass', 'rock', 'sand', 'snow', 'sidewalk', 'plaster', 'brick', 'concrete'];
+const FACADE_PHOTOS = ['brickA', 'brickB', 'stone', 'office', 'tower', 'teal'];
 const cache = new Map();
 let ready = null;
 
@@ -10,11 +11,12 @@ export function preloadTextures(detail = true, onProgress = () => {}) {
   const loader = new THREE.TextureLoader();
   const kinds = detail ? ['diff', 'nor', 'rough'] : ['diff'];
   const jobs = NAMES.flatMap((name) => kinds.map((kind) => [name, kind]));
+  for (const name of FACADE_PHOTOS) jobs.push([`facade_${name}`, 'diff'], [`facade_${name}`, 'glow']);
   let done = 0;
   ready = Promise.all(jobs.map(([name, kind]) => loader.loadAsync(`assets/textures/${name}_${kind}.jpg`).then((t) => {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = 8;
-    if (kind === 'diff') t.colorSpace = THREE.SRGBColorSpace;
+    if (kind === 'diff' || kind === 'glow') t.colorSpace = THREE.SRGBColorSpace;
     cache.set(`${name}_${kind}`, t);
     done += 1;
     onProgress(done, jobs.length);

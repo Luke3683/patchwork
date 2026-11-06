@@ -20,7 +20,6 @@ export class Game {
     this.currentId = null;
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.setSize(innerWidth, innerHeight, false);
     this.renderer.xr.enabled = true;
     this.renderer.xr.setReferenceSpaceType('local-floor');
@@ -45,6 +44,7 @@ export class Game {
     this.input = new Input(this);
     this.prefs = loadPrefs(this.save.data.prefs);
     this.look = new Look(this);
+    this.renderer.setSize(innerWidth, innerHeight, false);
     this.net = new Net(this);
     this.applyPrefs();
 
@@ -53,8 +53,7 @@ export class Game {
       this.camera.aspect = innerWidth / innerHeight;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(innerWidth, innerHeight, false);
-      const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
-      this.look.resize(size.x, size.y);
+      this.look.resize();
     });
 
     this.clock = new THREE.Clock();
@@ -101,7 +100,7 @@ export class Game {
     if (this.world && !this.busy) this.world.update?.(dt, this.time);
     this.kit?.update(dt, this.time);
     this.updateFade(dt);
-    this.look.render(dt);
+    this.look.render();
   }
 
   updateFade(dt) {

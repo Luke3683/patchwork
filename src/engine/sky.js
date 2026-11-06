@@ -74,6 +74,8 @@ const FRAG = /* glsl */`
 `;
 
 const WHITE = new THREE.Color();
+const SNAP = new THREE.Vector3();
+const SAVED = new THREE.Color();
 const c = (hex) => new THREE.Color(hex);
 // One entry per time of day. t runs from 0 (midnight) through 0.5 (noon) back to 1.
 const KEYS = [
@@ -82,8 +84,8 @@ const KEYS = [
   { t: 0.262, top: c(0x233a78), horizon: c(0xff8d5c), sun: c(0xff9f6b), cloud: c(0xe88a78), sky: 0.55, light: 1.3 },
   { t: 0.33, top: c(0x1a5fd0), horizon: c(0xbfe8ff), sun: c(0xfff0d2), cloud: c(0xffffff), sky: 0.5, light: 2.1 },
   { t: 0.5, top: c(0x0f50c9), horizon: c(0x9fe0ff), sun: c(0xfff6e8), cloud: c(0xffffff), sky: 0.46, light: 2.3 },
-  { t: 0.67, top: c(0x1558c6), horizon: c(0xffd9a8), sun: c(0xffdba0), cloud: c(0xffeed8), sky: 0.5, light: 2.1 },
-  { t: 0.735, top: c(0x123a86), horizon: c(0xff6a38), sun: c(0xff8d4a), cloud: c(0xff6f70), sky: 0.62, light: 1.7 },
+  { t: 0.67, top: c(0x2a6cc9), horizon: c(0xffe6c9), sun: c(0xffdba0), cloud: c(0xffeed8), sky: 0.5, light: 2.1 },
+  { t: 0.735, top: c(0x1f4a94), horizon: c(0xff9a68), sun: c(0xffb98a), cloud: c(0xff9c8c), sky: 0.72, light: 1.5 },
   { t: 0.785, top: c(0x0a2050), horizon: c(0xb8406a), sun: c(0xd8607a), cloud: c(0x5c2a58), sky: 0.5, light: 0.6 },
   { t: 0.84, top: c(0x05081a), horizon: c(0x172040), sun: c(0x96a8d8), cloud: c(0x1c2340), sky: 0.5, light: 0.45 },
   { t: 1.0, top: c(0x03050f), horizon: c(0x0b1430), sun: c(0x96a8d8), cloud: c(0x151b30), sky: 0.5, light: 0.45 },
@@ -197,18 +199,31 @@ export class DynamicSky {
     this.light.color.copy(u.sunColor.value).lerp(WHITE, 0.42);
     this.light.intensity = lightLevel;
     const lightDir = this.sunDir.y > -0.03 ? this.sunDir : this.moonDir();
-    this.light.position.copy(focus).addScaledVector(lightDir, 500);
-    this.light.target.position.copy(focus);
+    // Moving the shadow area in steps stops shadow edges crawling as you walk.
+    SNAP.set(Math.round(focus.x / 4) * 4, Math.round(focus.y / 4) * 4, Math.round(focus.z / 4) * 4);
+    this.light.position.copy(SNAP).addScaledVector(lightDir, 500);
+    this.light.target.position.copy(SNAP);
+    if (this.light.castShadow) {
+      // Shadows redraw every other frame, which nobody can see and saves a lot of work.
+      this.shadowTick = !this.shadowTick;
+      this.light.shadow.autoUpdate = false;
+      this.light.shadow.needsUpdate = this.shadowTick;
+    }
 
-    if (this.pmrem && !this.k.game.isXR && Math.abs(this.time - this.envTime) > 0.006) {
+    if (this.pmrem && !this.k.game.isXR && Math.abs(this.time - this.envTime) > 0.02) {
       this.envTime = this.time;
       const old = this.envTarget;
       const { toneMapping } = this.k.game.renderer;
       this.k.game.renderer.toneMapping = THREE.NoToneMapping;
+      // Light bounced from the sky is paler than the sky looks. A pure blue dome would turn
+      // every gray road and shadow blue.
+      SAVED.copy(u.top.value);
+      u.top.value.lerp(WHITE, 0.45).lerp(u.horizon.value, 0.3);
       this.envTarget = this.pmrem.fromScene(this.envScene, 0, 1, 4000);
+      u.top.value.copy(SAVED);
       this.k.game.renderer.toneMapping = toneMapping;
       this.k.scene.environment = this.envTarget.texture;
-      this.k.scene.environmentIntensity = 1.15;
+      this.k.scene.environmentIntensity = 0.9;
       old?.dispose();
     }
 

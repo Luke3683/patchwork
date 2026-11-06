@@ -6,10 +6,10 @@ const MAP_INTERVAL = 0.2;
 
 const CONTROLS = {
   foot: 'WASD move · Shift run · Space jump · Click punch · F steal or get in · G rob store · V view · U menu · H Crossroads',
-  land: 'W gas · S brake · A D steer · Space drift · Shift nitro · F get out · U menu',
-  boat: 'W gas · S reverse · A D steer · F get out · U menu',
-  plane: 'Shift throttle up · Z throttle down · S climb · W dive · A D bank · Space brakes · F get out',
-  heli: 'Shift or Space up · Z down · W S forward and back · A D turn · F get out',
+  land: 'W gas · S brake · A D steer · Space drift · Shift nitro · R radio · F get out · U menu',
+  boat: 'W gas · S reverse · A D steer · R radio · F get out · U menu',
+  plane: 'Mouse to aim · W throttle up · S throttle down · A D turn · Space brakes · R radio · F get out',
+  heli: 'Space or Shift up · Z down · W S forward and back · A D turn · R radio · F get out',
 };
 
 const toMap = (v, size) => ((v + HALF) / (HALF * 2)) * size;

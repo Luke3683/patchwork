@@ -239,6 +239,15 @@ export class Vehicle {
       const lift = speed > this.def.takeoff ? Math.max(0, pitchIn) * 0.34 : 0;
       this.pitch = THREE.MathUtils.damp(this.pitch, lift, 3, dt);
       if ((c?.brake ?? 0) > 0) speed = Math.max(0, speed - 24 * dt);
+    } else if (c?.aim) {
+      // Mouse flying: the plane banks and climbs toward where the camera points.
+      this.pitch = THREE.MathUtils.damp(this.pitch, THREE.MathUtils.clamp(c.aim.pitch, -0.9, 0.7), 1.6 * authority * control, dt);
+      this.roll = THREE.MathUtils.damp(this.roll, THREE.MathUtils.clamp(c.aim.roll, -1.1, 1.1), 3 * authority * control, dt);
+      this.yaw -= Math.sin(this.roll) * 0.8 * authority * control * dt;
+      if (speed < this.def.stall) {
+        const stall = 1 - speed / this.def.stall;
+        this.pitch = THREE.MathUtils.damp(this.pitch, -0.7, stall * 1.6, dt);
+      }
     } else {
       this.pitch = THREE.MathUtils.clamp(this.pitch + pitchIn * 0.7 * authority * control * dt, -1.0, 0.85);
       this.roll = THREE.MathUtils.clamp(this.roll + rollIn * 1.8 * authority * control * dt, -1.25, 1.25);
@@ -327,7 +336,9 @@ export class Vehicle {
     const steer = c?.steer ?? 0;
     const gas = c?.gas ?? 0;
     const brake = c?.brake ?? 0;
-    this.yaw -= steer * s.turn * Math.min(1, Math.abs(fwd) / 5) * (fwd >= 0 ? 1 : -1) * dt;
+    // A boat run up on the shore can always pivot, or it would be stuck there for good.
+    const pivot = gas > 0 || brake > 0 ? 0.4 : 0;
+    this.yaw -= steer * s.turn * Math.max(pivot, Math.min(1, Math.abs(fwd) / 5)) * (fwd >= -0.2 ? 1 : -1) * dt;
     let force = gas * s.accel * (1 - Math.min(0.95, Math.max(0, fwd) / s.top));
     if (brake > 0) force -= fwd > 0 ? brake * 12 : brake * 5;
     this.vel.x += f.x * force * dt;
@@ -343,7 +354,7 @@ export class Vehicle {
     const nz = this.pos.z + this.vel.z * dt;
     // Boats run aground in the shallows.
     if (this.world.terrain.height(nx, nz) > -1) {
-      this.vel.multiplyScalar(0.5);
+      this.vel.multiplyScalar(-0.3);
       if (this.world.terrain.height(this.pos.x, this.pos.z) > -1) {
         this.pos.x = nx;
         this.pos.z = nz;

@@ -2,6 +2,8 @@ import { Game } from './engine/game.js';
 import { worlds } from './worlds/index.js';
 import { Net } from './engine/net.js';
 import { preloadTextures } from './worlds/meridian/textures.js';
+import { preloadCrowd } from './worlds/meridian/crowd.js';
+import { preloadPrefabs } from './worlds/meridian/prefabs.js';
 
 const params = new URLSearchParams(location.search);
 const $ = (id) => document.getElementById(id);
@@ -32,6 +34,14 @@ async function boot() {
   await preloadTextures(game.look.high, (done, total) => {
     $('vr-note').textContent = `Loading materials ${done} of ${total}…`;
   });
+  await preloadCrowd((done, total) => {
+    $('vr-note').textContent = `Loading people ${done} of ${total}…`;
+  });
+  if (game.look.high) {
+    await preloadPrefabs((done, total) => {
+      $('vr-note').textContent = `Loading the city ${done} of ${total}…`;
+    });
+  }
   $('vr-note').textContent = 'Building the island…';
   await new Promise((resolve) => setTimeout(resolve, 30));
   await game.enter('meridian');

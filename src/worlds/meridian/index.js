@@ -6,6 +6,7 @@ import { Terrain, makeWater, PADS, AIRPORT, CITY_HEIGHT, HALF } from './terrain.
 import { Solids, buildCity, roadTexture } from './city.js';
 import { buildFoliage, buildGrass } from './foliage.js';
 import { People } from './npc.js';
+import { OUTFITS, OUTFIT_LABELS } from './crowd.js';
 import { Crime } from './crime.js';
 import { Vehicle, TYPES } from './vehicles.js';
 import { trafficCarGeometry } from './models.js';
@@ -17,7 +18,7 @@ import { Hud } from './hud.js';
 let cachedTerrain = null;
 const VIEW_DESKTOP = 1500;
 const VIEW_XR = 620;
-const VEHICLE_SHOW = 340;
+const VEHICLE_SHOW = 240;
 const TIMES = ['cycle', 'sunrise', 'noon', 'sunset', 'night'];
 const TIME_VALUES = { sunrise: 0.27, noon: 0.5, sunset: 0.735, night: 0.95 };
 const e1 = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -32,7 +33,7 @@ function seeded(seed) {
 
 /** Traffic follows roads around the island. It's all one mesh, so it's cheap. */
 function buildTraffic(k, terrain, parkedSpots, solids) {
-  const geo = trafficCarGeometry({ low: !k.game.look.high });
+  const geo = trafficCarGeometry({ low: !k.game.look.high, traffic: true });
   const moving = k.game.look.high ? 80 : 24;
   const block = (x0, z0, x1, z1) => {
     const corners = [[x0, z0], [x1, z0], [x1, z1], [x0, z1], [x0, z0]];
@@ -77,16 +78,15 @@ function buildTraffic(k, terrain, parkedSpots, solids) {
   mesh.frustumCulled = false;
   mesh.castShadow = true;
   const dummy = new THREE.Object3D();
+  const paint = new THREE.Color();
   const update = (dt, focus) => {
+    let drawn = 0;
     for (let i = 0; i < cars.length; i++) {
       const c = cars[i];
       if (c.gone > 0) {
         c.gone -= dt;
         // It only reappears away from the player, so nothing pops in nearby.
         if (c.gone <= 0 && Math.hypot(c.x - focus.x, c.z - focus.z) < 180) c.gone = 8;
-        dummy.position.set(0, -500, 0);
-        dummy.updateMatrix();
-        mesh.setMatrixAt(i, dummy.matrix);
         continue;
       }
       if (!c.parked) {
@@ -112,13 +112,18 @@ function buildTraffic(k, terrain, parkedSpots, solids) {
         c.y = terrain.height(c.x, c.z) + 0.22;
         c.yaw = Math.atan2(-dx, -dz);
       }
-      const far = Math.hypot(c.x - focus.x, c.z - focus.z) > 900;
-      dummy.position.set(c.x, far ? -500 : c.y, c.z);
+      // Only nearby cars are drawn at all. The rest keep driving unseen.
+      if (Math.hypot(c.x - focus.x, c.z - focus.z) > (c.parked ? 320 : 620)) continue;
+      dummy.position.set(c.x, c.y, c.z);
       dummy.rotation.set(0, c.yaw, 0);
       dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+      mesh.setMatrixAt(drawn, dummy.matrix);
+      mesh.setColorAt(drawn, paint.set(c.color));
+      drawn += 1;
     }
+    mesh.count = drawn;
     mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   };
   /** A stolen car leaves the street, and a replacement turns up later. */
   const remove = (c) => {
@@ -173,8 +178,8 @@ class World {
     const { camera } = k;
     const oldNear = camera.near;
     const oldFar = camera.far;
-    camera.near = 0.12;
-    camera.far = 3200;
+    camera.near = k.game.look.high ? 0.35 : 0.1;
+    camera.far = 3000;
     camera.updateProjectionMatrix();
     k.onDispose(() => {
       camera.near = oldNear;
@@ -183,7 +188,7 @@ class World {
       camera.updateProjectionMatrix();
     });
 
-    this.sky = new DynamicSky(k, { time: 0.71, fogNear: this.view * 0.2, fogFar: this.view });
+    this.sky = new DynamicSky(k, { time: 0.64, fogNear: this.view * 0.32, fogFar: this.view });
     this.applyTimePref();
     this.water = makeWater(this.terrain, this.sky);
     k.root.add(this.water);
@@ -247,7 +252,7 @@ class World {
     const len = Math.hypot(x, z) || 1;
     let px = x;
     let pz = z;
-    for (let i = 0; i < 120 && this.terrain.height(px, pz) > -3; i++) {
+    for (let i = 0; i < 500 && this.terrain.height(px, pz) > -3; i++) {
       px += (x / len) * 8;
       pz += (z / len) * 8;
     }
@@ -382,7 +387,7 @@ class World {
   applyTimePref() {
     const pref = this.progress.data.time;
     this.sky.frozen = pref !== 'cycle';
-    if (pref !== 'cycle') this.sky.time = TIME_VALUES[pref] ?? 0.72;
+    if (pref !== 'cycle') this.sky.time = TIME_VALUES[pref] ?? 0.655;
   }
 
   // --- Menu: upgrades, vehicles, travel ---------------------------------------------
@@ -509,6 +514,25 @@ class World {
         progress.data.time = TIMES[(TIMES.indexOf(pref) + 1) % TIMES.length];
         progress.persist();
         this.applyTimePref();
+        this.openMenu('World');
+      }, 1.1, y, { accent: '#ff5c4d', width: 0.56 });
+      y -= 0.3;
+      const worn = this.player.hero.outfit;
+      row('Your clothes', 'Change your whole look. Your colors come from the Avatar Studio.', OUTFIT_LABELS[worn] ?? worn, y);
+      button('Change', () => {
+        const next = OUTFITS[(OUTFITS.indexOf(worn) + 1) % OUTFITS.length];
+        this.player.hero.outfit = next;
+        this.player.hero.clip = null;
+        progress.data.outfit = next;
+        progress.persist();
+        this.openMenu('World');
+      }, 1.1, y, { accent: '#ff5c4d', width: 0.56 });
+      y -= 0.3;
+      const tuned = this.player.radio.off ? 'Off' : this.player.radio.station.name;
+      row('Radio', 'Plays in anything you drive. Changes with R on a keyboard.', tuned, y);
+      button('Next', () => {
+        this.player.radio.next();
+        if (!this.player.vehicle) this.player.radio.stop();
         this.openMenu('World');
       }, 1.1, y, { accent: '#ff5c4d', width: 0.56 });
       y -= 0.3;
@@ -659,7 +683,7 @@ class World {
   updateAttract(t) {
     const { rig, camera, input, game } = this.k;
     this.sky.frozen = true;
-    this.sky.time = 0.72;
+    this.sky.time = 0.655;
     const shots = [
       { from: [46, 11, 330], to: [46, 13, 150], look: [46, 60, -240] },
       { from: [-360, 150, 280], to: [-120, 190, 420], look: [0, 120, 0] },
@@ -733,6 +757,7 @@ class World {
     if (started && !this.paused) trafficCollisions(this, dt);
     this.traffic.update(dt, focus);
     this.people.update(dt, focus);
+    this.city.prefabs.update(dt, focus);
     this.grass?.(focus);
     this.updateCulling(focus);
 
